@@ -26,7 +26,7 @@ export class WalletController {
 
   @Get(':id/stats')
   @ApiOperation({ summary: 'Get wallet statistics' })
-  getWalletStats(@Param('id') id: string) {
+  getWalletStats(@Param('walletId') id: string) {
     return this.walletService.getWalletStats(id);
   }
 

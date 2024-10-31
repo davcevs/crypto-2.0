@@ -7,6 +7,7 @@ import { Transaction } from '../entities/transaction.entity';
 import { BinanceModule } from '../binance/binance.module';
 import { AuthModule } from 'src/auth/auth.module';
 import { WalletController } from './wallet.controller';
+import { CryptoHoldingsService } from 'src/crypto-holdings/crypto-holdings.service';
 
 @Module({
   imports: [
@@ -15,7 +16,7 @@ import { WalletController } from './wallet.controller';
     BinanceModule,
   ],
   controllers: [WalletController], // Ensure WalletController is listed here
-  providers: [WalletService],
+  providers: [WalletService, CryptoHoldingsService],
   exports: [WalletService],
 })
 export class WalletModule {}

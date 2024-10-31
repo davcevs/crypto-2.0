@@ -1,3 +1,4 @@
+import { CryptoHoldingsModule } from './crypto-holdings/crypto-holdings.module';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config'; // Import ConfigModule
@@ -11,6 +12,7 @@ import { CryptoHolding } from './entities/crypto-holding.entity';
 
 @Module({
   imports: [
+    CryptoHoldingsModule,
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',

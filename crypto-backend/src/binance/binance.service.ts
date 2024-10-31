@@ -6,7 +6,7 @@ import {
   BinanceTickerPrice,
   Binance24HrStats,
 } from './interfaces/binance.interfaces';
-import { StatisticsResponseDto } from './dtos/binance.dto';
+import { HistoricalPriceDto, StatisticsResponseDto } from './dtos/binance.dto';
 
 @Injectable()
 export class BinanceService {
@@ -71,6 +71,40 @@ export class BinanceService {
       };
     } catch (error) {
       this.logger.error(`Error in get24HrChange: ${error.message}`);
+      throw error;
+    }
+  }
+
+  async getHistoricalPrices(
+    symbol: string,
+    interval = '1h',
+    limit = 24,
+  ): Promise<HistoricalPriceDto[]> {
+    try {
+      const response = await firstValueFrom(
+        this.httpService
+          .get<any[]>(`${this.apiUrl}/klines`, {
+            params: { symbol, interval, limit },
+          })
+          .pipe(
+            catchError((error) => {
+              this.logger.error(
+                `Failed to fetch historical data for ${symbol}: ${error.message}`,
+              );
+              throw new HttpException(
+                `Unable to fetch historical data for ${symbol}`,
+                HttpStatus.BAD_REQUEST,
+              );
+            }),
+          ),
+      );
+
+      return response.data.map((kline) => ({
+        close: parseFloat(kline[4]), // Close price is at index 4
+        time: kline[0], // Open time is at index 0
+      }));
+    } catch (error) {
+      this.logger.error(`Error in getHistoricalPrices: ${error.message}`);
       throw error;
     }
   }

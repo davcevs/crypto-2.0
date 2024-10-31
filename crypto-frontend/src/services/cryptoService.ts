@@ -269,21 +269,19 @@ export class CryptoService {
 
   public async buyCrypto(dto: BuySellCryptoDto): Promise<void> {
     try {
-      // Get the wallet ID first
       const walletId = await this.getWalletId();
 
-      if (!dto.userId) {
-        throw new Error("User ID is required");
-      }
+      // Format request body according to API specification
+      const requestBody = {
+        userId: dto.userId,
+        walletId: walletId, // Include walletId in body
+        symbol: dto.symbol,
+        amount: dto.amount,
+      };
 
       const response = await this.axiosInstance.post(
         `/wallet/${walletId}/buy`,
-        {
-          userId: dto.userId,
-          symbol: dto.symbol,
-          amount: dto.amount,
-          walletId: walletId, // Add walletId to the request payload
-        }
+        requestBody
       );
 
       // Invalidate the cache after a successful purchase
@@ -291,7 +289,9 @@ export class CryptoService {
 
       return response.data;
     } catch (error: any) {
-      if (error.response?.status === 401) {
+      if (error.response?.data?.message) {
+        throw new Error(error.response.data.message);
+      } else if (error.response?.status === 401) {
         this.cachedWalletId = null;
         localStorage.removeItem("token");
         throw new Error("Unauthorized: Please log in again.");
@@ -302,85 +302,92 @@ export class CryptoService {
         );
       } else if (error.response?.status === 400) {
         throw new Error(
-          error.response.data.message || "Invalid buy request parameters."
+          "Invalid buy request. Please check your input parameters."
         );
       }
       throw new Error(
-        error.response?.data?.message ||
-          "Unable to process your trade at this time."
+        "Unable to process your trade at this time. Please try again later."
       );
     }
   }
 
   public async sellCrypto(dto: BuySellCryptoDto): Promise<void> {
     try {
-      // Get the wallet ID first
       const walletId = await this.getWalletId();
 
-      if (!dto.userId) {
-        throw new Error("User ID is required");
-      }
+      // Format request body according to API specification
+      const requestBody = {
+        userId: dto.userId,
+        walletId: walletId, // Include walletId in body
+        symbol: dto.symbol,
+        amount: dto.amount,
+      };
 
       // Check if we have sufficient balance before attempting to sell
       const walletData = await this.getWalletData();
-      const symbol = dto.symbol.replace("USDT", "");
+      const symbol = dto.symbol.endsWith("USDT")
+        ? dto.symbol.replace("USDT", "")
+        : dto.symbol;
 
-      // Find the balance for the specific crypto
-      const cryptoBalance = walletData.balances.find(
-        (balance) => balance.symbol === symbol
+      const cryptoBalance = walletData.holdings.find(
+        (holding) => holding.symbol.toUpperCase() === symbol.toUpperCase()
       );
 
-      console.log("Wallet Data:", walletData);
-      console.log("Looking for symbol:", symbol);
-      console.log("Found balance:", cryptoBalance);
-
-      if (!cryptoBalance || cryptoBalance.free < dto.amount) {
+      if (!cryptoBalance || cryptoBalance.amount < dto.amount) {
         throw new Error(
           `Insufficient ${symbol} balance. Available: ${
-            cryptoBalance ? cryptoBalance.free : 0
+            cryptoBalance ? cryptoBalance.amount : 0
           }`
         );
       }
 
       const response = await this.axiosInstance.post(
         `/wallet/${walletId}/sell`,
-        {
-          userId: dto.userId,
-          walletId: walletId,
-          symbol: dto.symbol,
-          amount: dto.amount,
-        }
+        requestBody
       );
 
-      // Invalidate the cache after a successful sale
       this.cachedWalletId = null;
-
       return response.data;
     } catch (error: any) {
-      if (error.response?.status === 401) {
+      if (error.response?.data?.message) {
+        throw new Error(error.response.data.message);
+      } else if (error.response?.status === 401) {
         this.cachedWalletId = null;
+        localStorage.removeItem("token");
         throw new Error("Unauthorized: Please log in again.");
       } else if (error.response?.status === 404) {
+        this.cachedWalletId = null;
         throw new Error(
           "Wallet not found. Please ensure you have created a wallet."
         );
       } else if (error.response?.status === 400) {
         throw new Error(
-          error.response.data.message || "Invalid sell parameters."
+          "Invalid sell request. Please check your input parameters."
         );
-      } else if (error.response?.status === 500) {
-        console.error("Server error details:", error.response.data);
-        throw new Error(
-          "Server error: Unable to process sell order. Please try again later."
-        );
-      }
-      // If it's a custom error we threw (like insufficient balance)
-      if (error.message && !error.response) {
-        throw error;
       }
       throw new Error(
-        error.response?.data?.message || "Failed to sell crypto."
+        "Unable to process your trade at this time. Please try again later."
       );
+    }
+  }
+
+  public async getHistoricalPrices(
+    symbol: string,
+    interval = "1h",
+    limit = 24
+  ): Promise<Array<{ price: number; time: string }>> {
+    try {
+      const response = await axios.get(
+        `${API_BASE_URL}/crypto/historical/${symbol}`,
+        { params: { interval, limit } }
+      );
+      return response.data.map((entry: { close: number; time: number }) => ({
+        price: entry.close,
+        time: new Date(entry.time).toLocaleTimeString(),
+      }));
+    } catch (error) {
+      console.error(`Failed to fetch historical data for ${symbol}:`, error);
+      throw new Error(`Unable to fetch historical data for ${symbol}`);
     }
   }
 

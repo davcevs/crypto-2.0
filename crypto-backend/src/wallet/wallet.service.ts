@@ -4,13 +4,14 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Wallet } from '../entities/wallet.entity';
 import { CryptoHolding } from '../entities/crypto-holding.entity';
 import { BinanceService } from '../binance/binance.service';
 import { Transaction } from '../entities/transaction.entity';
 import { User } from 'src/entities/user.entity';
 import { BuySellCryptoDto } from 'src/auth/dto/wallet.dto';
+import { CryptoHoldingsService } from 'src/crypto-holdings/crypto-holdings.service';
 
 @Injectable()
 export class WalletService {
@@ -24,6 +25,8 @@ export class WalletService {
     private binanceService: BinanceService,
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    @InjectRepository(CryptoHolding)
+    private readonly cryptoHoldingsService: CryptoHoldingsService,
   ) {}
 
   async createWallet(userId: string): Promise<Wallet> {

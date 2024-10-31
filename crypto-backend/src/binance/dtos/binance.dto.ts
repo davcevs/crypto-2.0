@@ -8,3 +8,8 @@ export class StatisticsResponseDto {
   priceChange: number;
   priceChangePercent: number;
 }
+
+export class HistoricalPriceDto {
+  close: number;
+  time: number;
+}

@@ -32,9 +32,15 @@ export interface WalletBalance {
 export interface WalletData {
   walletId: string;
   userId: string;
+  holdings: Array<{
+    symbol: string;
+    amount: number;
+  }>;
   cashBalance: number;
-  holdings: Holding[];
-  balances: WalletBalance[];
+  balances: Array<{
+    symbol: string;
+    free: number;
+  }>;
 }
 
 export interface WalletStats {
