@@ -57,7 +57,7 @@ const Navbar = () => {
                 whileTap={{ scale: 0.95 }}
                 className="text-2xl font-bold bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent"
               >
-                CryptoExchange
+                TCoin
               </motion.div>
             </Link>
           </div>
