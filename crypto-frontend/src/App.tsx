@@ -44,8 +44,8 @@ function App() {
   const location = useLocation();
 
   return (
-    <div className="flex flex-col min-h-screen bg-black text-white">
-      <div className="fixed w-full z-50 bg-black/90 backdrop-blur-md border-b border-gray-800">
+    <div className="flex flex-col min-h-screen bg-[#181818] text-white">
+      <div className="fixed w-full z-50 bg-[#00000080] backdrop-blur-md border-b border-gray-800">
         <Navbar />
       </div>
       <main className="flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -55,7 +55,7 @@ function App() {
               path="/"
               element={
                 <PublicRoute>
-                  <div className="min-h-screen bg-gray-900 text-white">
+                  <div className="min-h-screen bg-[#f3b63e] text-black">
                     <Home />
                   </div>
                 </PublicRoute>
@@ -65,7 +65,9 @@ function App() {
               path="/login"
               element={
                 <PublicRoute>
-                  <Login />
+                  <div className="min-h-screen bg-[#f3b63e] text-black">
+                    <Login />
+                  </div>
                 </PublicRoute>
               }
             />
@@ -73,7 +75,9 @@ function App() {
               path="/register"
               element={
                 <PublicRoute>
-                  <Register />
+                  <div className="min-h-screen bg-[#f3b63e] text-black">
+                    <Register />
+                  </div>
                 </PublicRoute>
               }
             />
