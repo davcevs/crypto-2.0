@@ -1,3 +1,4 @@
+import { WalletData } from "@/interfaces/WalletInterfaces";
 import axios from "axios";
 
 const API_URL = "http://localhost:3000";
@@ -9,12 +10,12 @@ interface BuyRequestPayload {
   userId: string;
 }
 
-interface WalletData {
-  walletId: string;
-  balance: number;
-  holdings: any[];
-  transactions: any[];
-}
+// export interface WalletData {
+//   walletId: string;
+//   balance: number;
+//   holdings: any[];
+//   transactions: any[];
+// }
 
 interface CryptoTransaction {
   symbol: string;

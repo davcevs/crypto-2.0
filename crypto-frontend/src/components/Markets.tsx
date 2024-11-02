@@ -132,7 +132,7 @@ const Markets = () => {
       </div>
 
       {/* Markets Table */}
-      <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+      <div className="bg-[#181818]  rounded-xl border border-gray-800 overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>

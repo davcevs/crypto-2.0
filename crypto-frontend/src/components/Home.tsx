@@ -17,6 +17,7 @@ import Features from "./Features";
 import LatestCryptoNews from "./LatestCryptoNews";
 import TopCryptocurrencies from "./TopCryptocurrencies";
 import { Link } from "react-router-dom";
+import TradingTools from "./TradingTools";
 
 const HomePage: React.FC = () => {
   const [marketStats, setMarketStats] = useState({
@@ -27,11 +28,9 @@ const HomePage: React.FC = () => {
   });
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-[#181818] text-white">
       {/* Hero Section */}
       <section className="pt-32 pb-24 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-purple-500/10" />
-        <div className="absolute inset-0 bg-[url('/api/placeholder/1920/1080')] opacity-10" />
         <div className="container mx-auto px-4 relative z-10">
           <div className="max-w-3xl">
             <motion.h1
@@ -72,7 +71,7 @@ const HomePage: React.FC = () => {
       </section>
 
       {/* Market Overview */}
-      <section className="py-16 bg-gray-900">
+      <section className="py-10 bg-[#181818]">
         <div className="container mx-auto px-4">
           <div className="flex justify-between items-center mb-8">
             <h2 className="text-2xl font-bold">Market Trends</h2>
@@ -86,9 +85,8 @@ const HomePage: React.FC = () => {
           <TopCryptocurrencies />
         </div>
       </section>
-
       {/* Advanced Trading Section */}
-      <section className="py-24">
+      <section className="py-10">
         <div className="container mx-auto px-4">
           <div className="grid md:grid-cols-2 gap-16 items-center">
             <motion.div
@@ -96,9 +94,7 @@ const HomePage: React.FC = () => {
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
             >
-              <h2 className="text-4xl font-bold mb-6">
-                Professional Trading Tools
-              </h2>
+              <h2 className="text-4xl font-bold mb-6">Professional Trading</h2>
               <p className="text-gray-400 mb-8">
                 Advanced charting, order types, and trading features for both
                 beginners and experts.
@@ -144,9 +140,11 @@ const HomePage: React.FC = () => {
           </div>
         </div>
       </section>
-
+      <div>
+        <TradingTools />
+      </div>
       {/* Start Trading Section */}
-      <section className="py-24 bg-gray-900">
+      <section className="py-10 bbg-[#181818]">
         <div className="container mx-auto px-4">
           <div className="text-center max-w-2xl mx-auto mb-16">
             <h2 className="text-4xl font-bold mb-6">
@@ -192,8 +190,7 @@ const HomePage: React.FC = () => {
       </section>
 
       {/* Mobile App Section */}
-      <section className="py-24 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-blue-500/10" />
+      <section className="py-10 relative overflow-hidden">
         <div className="container mx-auto px-4 relative z-10">
           <div className="grid md:grid-cols-2 gap-16 items-center">
             <motion.div
@@ -235,19 +232,6 @@ const HomePage: React.FC = () => {
               />
             </motion.div>
           </div>
-        </div>
-      </section>
-
-      {/* News Section */}
-      <section className="py-16 bg-gray-900">
-        <div className="container mx-auto px-4">
-          <div className="flex justify-between items-center mb-8">
-            <h2 className="text-2xl font-bold">Latest News</h2>
-            <button className="text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1">
-              View all news <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-          <LatestCryptoNews />
         </div>
       </section>
 
@@ -329,8 +313,21 @@ const HomePage: React.FC = () => {
         </div>
       </section>
 
+      {/* News Section */}
+      <section className="py-10 bg-[#181818]">
+        <div className="container mx-auto px-4">
+          <div className="flex justify-between items-center mb-8">
+            <h2 className="text-2xl font-bold">Latest News</h2>
+            <button className="text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1">
+              View all news <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+          <LatestCryptoNews />
+        </div>
+      </section>
+
       {/* Features Section */}
-      <section className="py-24 bg-gray-900">
+      <section className="py-10 bg-[#181818]">
         <div className="container mx-auto px-4">
           <Features />
         </div>

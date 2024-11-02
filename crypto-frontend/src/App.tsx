@@ -12,6 +12,7 @@ import Footer from "./components/Footer";
 import Navbar from "./components/Navbar";
 import NFTMarket from "./components/NFTMarket";
 import CreateNFT from "./components/CreateNFT";
+import CryptoCasino from "./components/CryptoCasino";
 
 // Protected Route Component with enhanced logic
 const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
@@ -45,7 +46,7 @@ function App() {
 
   return (
     <div className="flex flex-col min-h-screen bg-[#181818] text-white">
-      <div className="fixed w-full z-50 bg-[#00000080] backdrop-blur-md border-b border-gray-800">
+      <div>
         <Navbar />
       </div>
       <main className="flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -122,6 +123,7 @@ function App() {
               }
             />
             <Route path="/learn" element={<Learn />} />
+            <Route path="/crypto-casino" element={<CryptoCasino />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </AnimatePresence>
