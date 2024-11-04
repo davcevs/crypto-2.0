@@ -27,7 +27,7 @@ const Learn = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-black p-8">
+    <div className="min-h-screen bg-gray p-8 mt-10">
       <motion.div
         initial="hidden"
         animate="visible"
