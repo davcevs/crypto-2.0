@@ -17,7 +17,7 @@ import Blackjack from "./Blackjack";
 const games = [
   {
     title: "Slots of Fortune",
-    imageSrc: "/api/placeholder/400/320",
+    imageSrc: "../src/assets/1.png.webp",
     category: "Slots",
     bgColor: "bg-gradient-to-br from-yellow-400 to-red-500",
     component: SlotMachine,
