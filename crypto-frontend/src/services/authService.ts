@@ -1,5 +1,6 @@
 import axios from "axios";
 import { cryptoService } from "./cryptoService";
+import { User } from "@/interfaces/UserInterface";
 
 const API_URL = "http://localhost:3000";
 
@@ -70,23 +71,34 @@ export const register = async (
   }
 };
 
-export const getCurrentUser = () => {
+export const getCurrentUser = (): User | null => {
   try {
-    const userString = localStorage.getItem("user");
     const token = localStorage.getItem("token");
+    if (!token) return null;
 
-    if (!userString || !token) {
-      return null;
-    }
+    // Decode the JWT token to get user data
+    const base64Url = token.split(".")[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split("")
+        .map(function (c) {
+          return "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2);
+        })
+        .join("")
+    );
 
-    // If there's a token, make sure it's set in the services
-    setupAuthentication(token);
+    const decodedToken = JSON.parse(jsonPayload);
 
-    return JSON.parse(userString);
+    // Return user object with required ID
+    return {
+      id: decodedToken.id || decodedToken.userId || decodedToken.sub, // check which property your token uses
+      email: decodedToken.email,
+      username: decodedToken.username,
+      walletId: decodedToken.walletId,
+    };
   } catch (error) {
-    console.error("Error parsing user data:", error);
-    localStorage.removeItem("user");
-    localStorage.removeItem("token");
+    console.error("Error getting current user:", error);
     return null;
   }
 };

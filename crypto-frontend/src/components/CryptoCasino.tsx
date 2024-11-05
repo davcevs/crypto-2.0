@@ -1,17 +1,16 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { UserCircle2, History, Wallet, TrendingUp } from "lucide-react";
-import {
-  getWallet,
-  getWalletStats,
-  updateWallet,
-  WalletData,
-  WalletStats,
-} from "../services/walletService";
+import axios from "axios";
 import GameCard from "./GameCard";
 import SlotMachine from "./SlotMachine";
 import Roulette from "./Roulette";
 import Blackjack from "./Blackjack";
+import { cryptoService } from "../services/cryptoService";
+import { useNavigate } from "react-router-dom";
+
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
 
 // Define the available games
 const games = [
@@ -38,7 +37,7 @@ const games = [
   },
 ];
 
-const WalletPanel = ({ wallet, stats, onClose }) => {
+const WalletPanel = ({ wallet, stats, onClose, cryptoBalances }) => {
   return (
     <motion.div
       initial={{ x: "100%" }}
@@ -60,6 +59,26 @@ const WalletPanel = ({ wallet, stats, onClose }) => {
         </div>
 
         <div className="bg-gray-800 rounded-lg p-4">
+          <h3 className="text-xl font-bold text-white mb-2">Crypto Holdings</h3>
+          <div className="space-y-2">
+            {cryptoBalances.map((holding) => (
+              <div
+                key={holding.symbol}
+                className="flex justify-between items-center"
+              >
+                <span className="text-gray-400">{holding.symbol}</span>
+                <div className="text-right">
+                  <div className="text-white">{holding.amount}</div>
+                  <div className="text-sm text-gray-400">
+                    ${(holding.amount * holding.price).toFixed(2)}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-gray-800 rounded-lg p-4">
           <h3 className="text-xl font-bold text-white mb-2">Statistics</h3>
           <div className="space-y-2">
             <div className="flex justify-between">
@@ -78,18 +97,6 @@ const WalletPanel = ({ wallet, stats, onClose }) => {
             </div>
           </div>
         </div>
-
-        <div className="bg-gray-800 rounded-lg p-4">
-          <h3 className="text-xl font-bold text-white mb-2">Holdings</h3>
-          <div className="space-y-2">
-            {wallet.holdings.map((holding) => (
-              <div key={holding.symbol} className="flex justify-between">
-                <span className="text-gray-400">{holding.symbol}</span>
-                <span className="text-white">{holding.amount}</span>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
     </motion.div>
   );
@@ -103,27 +110,119 @@ const CryptoCasino = () => {
   const [showReward, setShowReward] = useState(false);
   const [rewardAmount, setRewardAmount] = useState(0);
   const [error, setError] = useState(null);
+  const [cryptoBalances, setCryptoBalances] = useState([]);
+  const [userId, setUserId] = useState(null);
+  const navigate = useNavigate();
 
-  const fetchWalletData = async () => {
+  const fetchUserData = useCallback(async () => {
     try {
-      const walletData = await getWallet();
-      const stats = await getWalletStats();
-      setWallet(walletData);
-      setWalletStats(stats);
+      const urlParams = new URLSearchParams(window.location.search);
+      const userIdFromUrl = urlParams.get("userId");
+
+      if (!userIdFromUrl) {
+        throw new Error("No user ID provided in URL");
+      }
+
+      const response = await axios.get(
+        `${API_BASE_URL}/auth/user/${userIdFromUrl}`
+      );
+
+      if (!response.data) {
+        throw new Error("User not found");
+      }
+
+      setUserId(response.data.id);
+      return response.data.id;
+    } catch (err) {
+      setError(err.message);
+      console.error("Error fetching user data:", err);
+      // Redirect to login or home page if there's an error
+      navigate("/login");
+      return null;
+    }
+  }, [navigate]);
+
+  const fetchWalletData = useCallback(async (uid) => {
+    try {
+      // Get wallet using user ID
+      const walletResponse = await axios.get(
+        `${API_BASE_URL}/wallet/user/${uid}`
+      );
+      const walletId = walletResponse.data.walletId;
+
+      // Get wallet details
+      const detailsResponse = await axios.get(
+        `${API_BASE_URL}/wallet/${walletId}`
+      );
+      const statsResponse = await axios.get(
+        `${API_BASE_URL}/wallet/${walletId}/stats`
+      );
+
+      setWallet(detailsResponse.data);
+      setWalletStats(statsResponse.data);
+
+      // Update crypto balances with current prices
+      const balancesWithPrices = await Promise.all(
+        detailsResponse.data.holdings.map(async (holding) => {
+          // Check if the symbol already ends with USDT
+          const symbol = holding.symbol.endsWith("USDT")
+            ? holding.symbol
+            : `${holding.symbol}USDT`;
+
+          try {
+            const price = await cryptoService.getPrice(symbol);
+            return {
+              ...holding,
+              price,
+            };
+          } catch (error) {
+            console.error(`Failed to fetch price for ${symbol}:`, error);
+            return {
+              ...holding,
+              price: 0, // Use a fallback price or the last known price
+            };
+          }
+        })
+      );
+
+      setCryptoBalances(balancesWithPrices);
       setError(null);
     } catch (err) {
       setError(err.message);
+      console.error("Error fetching wallet data:", err);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchWalletData();
-  }, []);
+    const initializeData = async () => {
+      const uid = await fetchUserData();
+      if (uid) {
+        await fetchWalletData(uid);
+      }
+    };
+
+    initializeData();
+
+    // Set up crypto price updates
+    const unsubscribe = cryptoService.subscribeToPriceUpdates((prices) => {
+      if (cryptoBalances.length > 0) {
+        const updatedBalances = cryptoBalances.map((balance) => ({
+          ...balance,
+          price: prices[`${balance.symbol}USDT`] || balance.price,
+        }));
+        setCryptoBalances(updatedBalances);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      cryptoService.cleanup();
+    };
+  }, [fetchUserData, fetchWalletData]);
 
   const updateBalance = async (amount) => {
     try {
-      await updateWallet();
-      await fetchWalletData();
+      await fetchWalletData(userId);
       if (amount > 0) {
         setRewardAmount(amount);
         setShowReward(true);
@@ -139,6 +238,20 @@ const CryptoCasino = () => {
       return () => clearTimeout(timer);
     }
   }, [showReward]);
+
+  const getTotalBalance = () => {
+    if (!wallet || !cryptoBalances.length) {
+      return Number(wallet?.cashBalance || 0).toFixed(2);
+    }
+
+    const cryptoValue = cryptoBalances.reduce(
+      (total, holding) =>
+        total + Number(holding.amount) * Number(holding.price),
+      0
+    );
+
+    return (Number(wallet.cashBalance) + cryptoValue).toFixed(2);
+  };
 
   return (
     <div className="flex overflow-hidden bg-gradient-to-br from-gray-900 via-purple-900 to-black min-h-screen">
@@ -160,9 +273,9 @@ const CryptoCasino = () => {
           </div>
           {wallet && (
             <p className="text-gray-300 text-lg mt-2">
-              Balance:{" "}
+              Total Balance:{" "}
               <span className="text-green-400 font-bold">
-                ${wallet.cashBalance}
+                ${getTotalBalance()}
               </span>
             </p>
           )}
@@ -206,7 +319,9 @@ const CryptoCasino = () => {
             </button>
             {React.createElement(selectedGame.component, {
               updateBalance,
-              balance: wallet?.cashBalance || 0,
+              balance: getTotalBalance(),
+              cryptoBalances,
+              userId,
             })}
           </motion.div>
         ) : (
@@ -226,6 +341,7 @@ const CryptoCasino = () => {
             <WalletPanel
               wallet={wallet}
               stats={walletStats}
+              cryptoBalances={cryptoBalances}
               onClose={() => setShowWallet(false)}
             />
           )}

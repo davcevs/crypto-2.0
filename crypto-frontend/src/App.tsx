@@ -14,13 +14,29 @@ import NFTMarket from "./components/NFTMarket";
 import CreateNFT from "./components/CreateNFT";
 import CryptoCasino from "./components/CryptoCasino";
 
-// Protected Route Component with enhanced logic
-const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
+// Enhanced ProtectedRoute component with user ID handling
+const ProtectedRoute = ({
+  children,
+  requiresUserId = false,
+}: {
+  children: JSX.Element;
+  requiresUserId?: boolean;
+}) => {
   const user = getCurrentUser();
   const location = useLocation();
 
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // For casino route, ensure user has an ID
+  if (requiresUserId) {
+    if (!user.id) {
+      console.error("User session is invalid. Please log in again.");
+      // Clear invalid session
+      localStorage.removeItem("token");
+      return <Navigate to="/login" state={{ from: location }} replace />;
+    }
   }
 
   return children;
@@ -39,6 +55,31 @@ const PublicRoute = ({ children }: { children: JSX.Element }) => {
   }
 
   return children;
+};
+
+// Casino wrapper component to handle user ID injection
+const CasinoWrapper = () => {
+  const user = getCurrentUser();
+  const location = useLocation();
+
+  if (!user || !user.id) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // Check if userId is already in URL
+  const searchParams = new URLSearchParams(window.location.search);
+  const currentUserId = searchParams.get("userId");
+
+  // Only update URL if userId isn't already present or is different
+  if (!currentUserId || currentUserId !== user.id) {
+    window.history.replaceState(
+      null,
+      "",
+      `${window.location.pathname}?userId=${user.id}`
+    );
+  }
+
+  return <CryptoCasino />;
 };
 
 function App() {
@@ -123,7 +164,14 @@ function App() {
               }
             />
             <Route path="/learn" element={<Learn />} />
-            <Route path="/crypto-casino" element={<CryptoCasino />} />
+            <Route
+              path="/crypto-casino"
+              element={
+                <ProtectedRoute requiresUserId={true}>
+                  <CasinoWrapper />
+                </ProtectedRoute>
+              }
+            />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </AnimatePresence>

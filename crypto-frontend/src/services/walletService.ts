@@ -3,21 +3,14 @@ import axios from "axios";
 
 const API_URL = "http://localhost:3000";
 
-interface BuyRequestPayload {
+export interface BuyRequestPayload {
   symbol: string;
   amount: number;
   walletId: string;
   userId: string;
 }
 
-// export interface WalletData {
-//   walletId: string;
-//   balance: number;
-//   holdings: any[];
-//   transactions: any[];
-// }
-
-interface CryptoTransaction {
+export interface CryptoTransaction {
   symbol: string;
   amount: number;
 }
