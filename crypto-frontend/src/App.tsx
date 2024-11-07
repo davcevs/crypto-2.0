@@ -87,17 +87,17 @@ function App() {
 
   return (
     <div className="flex flex-col min-h-screen bg-[#181818] text-white">
-      <div>
+      <header>
         <Navbar />
-      </div>
-      <main className="flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 ">
+      </header>
+      <main className="flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
         <AnimatePresence mode="wait">
           <Routes location={location} key={location.pathname}>
             <Route
               path="/"
               element={
                 <PublicRoute>
-                  <div className="min-h-screen bg-[#f3b63e] text-black">
+                  <div className="min-h-screen text-black">
                     <Home />
                   </div>
                 </PublicRoute>
@@ -107,7 +107,7 @@ function App() {
               path="/login"
               element={
                 <PublicRoute>
-                  <div className="min-h-screen bg-[#f3b63e] text-black">
+                  <div className="min-h-screen text-black">
                     <Login />
                   </div>
                 </PublicRoute>
@@ -117,7 +117,7 @@ function App() {
               path="/register"
               element={
                 <PublicRoute>
-                  <div className="min-h-screen bg-[#f3b63e] text-black">
+                  <div className="min-h-screen text-black">
                     <Register />
                   </div>
                 </PublicRoute>

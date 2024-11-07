@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   TrendingUp,
@@ -19,7 +19,7 @@ import TopCryptocurrencies from "./TopCryptocurrencies";
 import { Link } from "react-router-dom";
 import TradingTools from "./TradingTools";
 
-const HomePage: React.FC = () => {
+const HomePage = () => {
   const [marketStats, setMarketStats] = useState({
     totalVolume: "76.4B",
     activeUsers: "108M+",

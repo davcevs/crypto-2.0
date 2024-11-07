@@ -4,10 +4,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X } from "lucide-react";
 import { getCurrentUser, logout } from "../services/authService";
 import UserMenu from "./UserMenu"; // Import the UserMenu component
+import { User } from "@/interfaces/UserInterface";
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
@@ -48,8 +49,8 @@ const Navbar = () => {
   };
 
   return (
-    <nav className="fixed w-full z-50 bg-black/90 backdrop-blur-md border-b border-gray-800">
-      <div className=" mx-auto px-4 sm:px-6 lg:px-8">
+    <nav className="fixed w-full z-50 bg-black/90 backdrop-blur-md border-b border-gray-800 ">
+      <div className=" mx-auto px-4 sm:px-6 lg:px-8 ">
         <div className="flex items-center justify-between h-14">
           <div className="flex items-center">
             <Link to="/" className="flex items-center">

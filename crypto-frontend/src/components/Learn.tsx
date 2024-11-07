@@ -13,16 +13,9 @@ import {
   Area,
 } from "recharts";
 import {
-  Award,
-  BookOpen,
   Trophy,
   Target,
   Star,
-  TrendingUp,
-  Gift,
-  Users,
-  BookMarked,
-  Timer,
   ArrowUpRight,
   ChevronRight,
   Check,
