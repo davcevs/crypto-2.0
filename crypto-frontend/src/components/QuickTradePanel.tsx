@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+// components/QuickTradePanel.tsx
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowUpCircle, ArrowDownCircle, RefreshCcw } from "lucide-react";
 import {
@@ -8,21 +9,17 @@ import {
   type TradingPair,
   BuySellCryptoDto,
 } from "../services/cryptoService";
+import { WalletData } from "@/interfaces/WalletInterfaces";
 
 interface QuickTradePanelProps {
   onTradeComplete: () => void;
-  walletBalance: number;
+  wallet: WalletData;
   userId: string;
 }
 
-export interface BuySellRequest {
-  userId: string;
-  symbol: string;
-  amount: number;
-}
 const QuickTradePanel = ({
   onTradeComplete,
-  walletBalance,
+  wallet,
   userId,
 }: QuickTradePanelProps) => {
   const [loading, setLoading] = useState<Record<string, boolean>>({});
@@ -34,20 +31,8 @@ const QuickTradePanel = ({
   const [stats, setStats] = useState<
     Record<TradingPair, { priceChangePercent: number }>
   >({} as Record<TradingPair, { priceChangePercent: number }>);
-  const [currentBalance, setCurrentBalance] = useState<number>(walletBalance);
-
-  // Fetch current wallet balance
-  const updateWalletBalance = async () => {
-    try {
-      const walletData = await cryptoService.getWalletData();
-      setCurrentBalance(parseFloat(walletData.cashBalance));
-    } catch (err) {
-      console.error("Error fetching wallet balance:", err);
-    }
-  };
 
   useEffect(() => {
-    updateWalletBalance();
     const unsubscribe = cryptoService.subscribeToPriceUpdates((newPrices) => {
       setPrices(newPrices);
     });
@@ -75,11 +60,11 @@ const QuickTradePanel = ({
   const validateTrade = (type: "buy" | "sell", symbol: TradingPair) => {
     if (type === "buy") {
       const cost = prices[symbol] * MINIMUM_TRADE_AMOUNTS[symbol];
-      if (cost > currentBalance) {
+      if (cost > wallet.cashBalance) {
         throw new Error(
           `Insufficient funds. Need ${formatPrice(
             cost
-          )} USDT, available: ${formatPrice(currentBalance)}`
+          )} USDT, available: ${formatPrice(wallet.cashBalance)}`
         );
       }
     }
@@ -107,8 +92,6 @@ const QuickTradePanel = ({
         await cryptoService.sellCrypto(tradeDto);
       }
 
-      // Update wallet balance after successful trade
-      await updateWalletBalance();
       onTradeComplete();
       setSuccess(
         `Successfully ${type === "buy" ? "bought" : "sold"} ${
@@ -141,23 +124,8 @@ const QuickTradePanel = ({
     >
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-semibold text-white">Quick Trade</h3>
-        <div className="flex items-center gap-4">
-          <span className="text-gray-300">
-            Balance: {formatPrice(currentBalance)}
-          </span>
-          <button
-            onClick={() => {
-              updateWalletBalance();
-              onTradeComplete();
-            }}
-            className="text-gray-400 hover:text-white"
-          >
-            <RefreshCcw className="h-5 w-5" />
-          </button>
-        </div>
       </div>
 
-      {/* Rest of the component remains the same */}
       <div className="grid gap-4 md:grid-cols-2">
         {TRADING_PAIRS.map((symbol) => (
           <div key={symbol} className="bg-gray-800 rounded-lg p-4">

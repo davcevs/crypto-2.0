@@ -51,7 +51,7 @@ export const MINIMUM_TRADE_AMOUNTS: Record<TradingPair, number> = {
   ETHUSDT: 0.001,
   BNBUSDT: 0.01,
   XRPUSDT: 1,
-  ADAUSDT: 1,
+  ADAUSDT: 1000,
   DOGEUSDT: 100,
   MATICUSDT: 1,
   SOLUSDT: 0.1,

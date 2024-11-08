@@ -30,17 +30,22 @@ export interface WalletBalance {
 }
 
 export interface WalletData {
-  walletId: string;
-  userId: string;
-  holdings: Array<{
+  id: string;
+  balance: number;
+  cashBalance: number;
+  holdings: {
     symbol: string;
     amount: number;
-  }>;
-  cashBalance: number;
-  balances: Array<{
+    currentPrice?: number;
+  }[];
+  transactions: {
+    id: string;
+    type: string;
     symbol: string;
-    free: number;
-  }>;
+    amount: number;
+    price: number;
+    timestamp: string;
+  }[];
 }
 
 export interface WalletStats {

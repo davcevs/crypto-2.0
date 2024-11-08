@@ -1,3 +1,4 @@
+// components/Dashboard.tsx
 import { Loader2 } from "lucide-react";
 import DashboardLogic from "../Logic/DashboardLogic";
 import DashboardUI from "./DashboardUI";
@@ -14,7 +15,6 @@ const Dashboard = () => {
   const { wallet, stats, loading, error, fetchWalletData } = DashboardLogic();
   const [userId, setUserId] = useState<string>("");
 
-  // Get user data from localStorage on component mount
   useEffect(() => {
     const userData = JSON.parse(
       localStorage.getItem("user") || "{}"
@@ -25,12 +25,8 @@ const Dashboard = () => {
   }, []);
 
   const handleTradeComplete = useCallback(() => {
-    // Refresh wallet data after trade completion
     fetchWalletData();
   }, [fetchWalletData]);
-
-  // Calculate balance from wallet data
-  const balance = wallet?.cashBalance || 0; // Updated to use cashBalance based on WalletData interface
 
   return (
     <div className="p-6 space-y-6">
@@ -50,7 +46,7 @@ const Dashboard = () => {
         <>
           <QuickTradePanel
             onTradeComplete={handleTradeComplete}
-            walletBalance={balance}
+            wallet={wallet}
             userId={userId}
           />
           <DashboardUI wallet={wallet} stats={stats} />
