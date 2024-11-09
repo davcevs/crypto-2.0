@@ -1,14 +1,4 @@
 // Types for wallet data
-
-export interface Transaction {
-  id: string;
-  type: "BUY" | "SELL";
-  amount: number;
-  symbol: string;
-  price: number;
-  timestamp: string;
-}
-
 export interface Holding {
   symbol: string;
   amount: number;
@@ -16,13 +6,12 @@ export interface Holding {
   totalValue?: number;
 }
 
-// export interface WalletData {
-//   walletId: string;
-//   cashBalance: number;
-//   holdings: Holding[];
-//   transactions: Transaction[];
-// }
-
+// Extended version for the full crypto holding data from backend
+export interface CryptoHolding extends Holding {
+  id: string;
+  averageBuyPrice: number;
+  walletId?: string;
+}
 export interface WalletBalance {
   symbol: string;
   free: number;
@@ -52,4 +41,15 @@ export interface WalletStats {
   totalValue: number;
   dailyChange: number;
   dailyChangePercentage: number;
+}
+
+export interface CryptoHoldingsResponse {
+  holdings: CryptoHolding[];
+  success: boolean;
+  message?: string;
+}
+
+export interface ApiError {
+  message: string;
+  statusCode: number;
 }

@@ -13,6 +13,8 @@ import Navbar from "./components/Navbar";
 import NFTMarket from "./components/NFTMarket";
 import CreateNFT from "./components/CreateNFT";
 import CryptoCasino from "./components/CryptoCasino";
+import { TransactionsPage } from "./components/TransactionsPage";
+import CryptoHoldingsDisplay from "./components/CryptoHoldingsDisplay";
 
 // Enhanced ProtectedRoute component with user ID handling
 const ProtectedRoute = ({
@@ -146,6 +148,11 @@ function App() {
                   <Dashboard />
                 </ProtectedRoute>
               }
+            />
+            <Route path="/transactions" element={<TransactionsPage />} />
+            <Route
+              path="/crypto-holdings"
+              element={<CryptoHoldingsDisplay />}
             />
             <Route
               path="/nft-market"

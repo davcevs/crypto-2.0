@@ -3,13 +3,17 @@ import { WalletService } from './wallet.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { BuySellCryptoDto, TransferCryptoDto } from '../auth/dto/wallet.dto';
+import { CryptoHoldingsService } from 'src/crypto-holdings/crypto-holdings.service';
 
 @ApiTags('Wallet')
 @ApiBearerAuth()
 // @UseGuards(JwtAuthGuard)
 @Controller('wallet')
 export class WalletController {
-  constructor(private walletService: WalletService) {}
+  constructor(
+    private walletService: WalletService,
+    private readonly cryptoHoldingsService: CryptoHoldingsService,
+  ) {}
 
   @Get(':id')
   @ApiOperation({ summary: 'Get wallet details' })
