@@ -13,7 +13,7 @@ const Register = () => {
     try {
       // Pass username, email, and password to the register function
       await register(username, email, password);
-      navigate("/markets");
+      navigate("/login");
     } catch (error) {
       console.error("Registration failed", error);
     }

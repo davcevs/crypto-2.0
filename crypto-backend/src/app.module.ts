@@ -1,5 +1,4 @@
 import { TransactionModule } from './transactions/transaction.module';
-import { NewsModule } from './news/news.module';
 import { CryptoHoldingsModule } from './crypto-holdings/crypto-holdings.module';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -15,7 +14,6 @@ import { CryptoHolding } from './entities/crypto-holding.entity';
 @Module({
   imports: [
     TransactionModule,
-    NewsModule,
     CryptoHoldingsModule,
     ConfigModule.forRoot({
       isGlobal: true,

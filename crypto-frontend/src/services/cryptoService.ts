@@ -1,6 +1,7 @@
 // src/services/cryptoService.ts
 import axios, { AxiosInstance } from "axios";
 import { WalletData } from "../interfaces/WalletInterfaces";
+import cryptoHoldingsService from "./cryptoHoldingsService";
 
 export interface CryptoPrice {
   symbol: string;
@@ -242,6 +243,7 @@ export class CryptoService {
 
   public async getWalletData(): Promise<WalletData> {
     try {
+      const userData = this.getUserData(); // Get user data first
       const walletId = await this.getWalletId();
       const response = await this.axiosInstance.get(`/wallet/${walletId}`);
 
@@ -250,7 +252,7 @@ export class CryptoService {
       // Ensure the response data has the expected structure
       const walletData: WalletData = {
         walletId: response.data.walletId,
-        userId: response.data.userId,
+        userId: userData.id, // Add the userId from userData
         holdings: Array.isArray(response.data.holdings)
           ? response.data.holdings
           : [],
@@ -271,23 +273,26 @@ export class CryptoService {
     try {
       const walletId = await this.getWalletId();
 
-      // Format request body according to API specification
+      // First update the holdings
+      await cryptoHoldingsService.updateHolding({
+        walletId,
+        symbol: dto.symbol,
+        amount: dto.amount,
+        transactionType: "BUY",
+      });
+
+      // Then process the transaction
       const requestBody = {
         userId: dto.userId,
-        walletId: walletId, // Include walletId in body
+        walletId: walletId,
         symbol: dto.symbol,
         amount: dto.amount,
       };
 
-      const response = await this.axiosInstance.post(
-        `/wallet/${walletId}/buy`,
-        requestBody
-      );
+      await this.axiosInstance.post(`/wallet/${walletId}/buy`, requestBody);
 
-      // Invalidate the cache after a successful purchase
+      // Invalidate the cache
       this.cachedWalletId = null;
-
-      return response.data;
     } catch (error: any) {
       if (error.response?.data?.message) {
         throw new Error(error.response.data.message);
@@ -315,39 +320,26 @@ export class CryptoService {
     try {
       const walletId = await this.getWalletId();
 
-      // Format request body according to API specification
+      // First check and update the holdings
+      await cryptoHoldingsService.updateHolding({
+        walletId,
+        symbol: dto.symbol,
+        amount: dto.amount,
+        transactionType: "SELL",
+      });
+
+      // Then process the transaction
       const requestBody = {
         userId: dto.userId,
-        walletId: walletId, // Include walletId in body
+        walletId: walletId,
         symbol: dto.symbol,
         amount: dto.amount,
       };
 
-      // Check if we have sufficient balance before attempting to sell
-      const walletData = await this.getWalletData();
-      const symbol = dto.symbol.endsWith("USDT")
-        ? dto.symbol.replace("USDT", "")
-        : dto.symbol;
+      await this.axiosInstance.post(`/wallet/${walletId}/sell`, requestBody);
 
-      const cryptoBalance = walletData.holdings.find(
-        (holding) => holding.symbol.toUpperCase() === symbol.toUpperCase()
-      );
-
-      if (!cryptoBalance || cryptoBalance.amount < dto.amount) {
-        throw new Error(
-          `Insufficient ${symbol} balance. Available: ${
-            cryptoBalance ? cryptoBalance.amount : 0
-          }`
-        );
-      }
-
-      const response = await this.axiosInstance.post(
-        `/wallet/${walletId}/sell`,
-        requestBody
-      );
-
+      // Invalidate the cache
       this.cachedWalletId = null;
-      return response.data;
     } catch (error: any) {
       if (error.response?.data?.message) {
         throw new Error(error.response.data.message);

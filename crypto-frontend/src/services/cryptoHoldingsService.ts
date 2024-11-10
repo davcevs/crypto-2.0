@@ -1,7 +1,6 @@
 import axios, { AxiosError } from "axios";
 import {
   CryptoHolding,
-  WalletData,
   CryptoHoldingsResponse,
   ApiError,
 } from "../interfaces/WalletInterfaces";
@@ -14,13 +13,25 @@ interface UpdateHoldingDto {
 }
 
 class CryptoHoldingsService {
-  private apiUrl = "/api/crypto-holdings";
+  private static instance: CryptoHoldingsService;
+  private apiUrl: string;
 
-  async getCryptoHoldings(): Promise<CryptoHolding[]> {
+  private constructor() {
+    this.apiUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+  }
+
+  public static getInstance(): CryptoHoldingsService {
+    if (!CryptoHoldingsService.instance) {
+      CryptoHoldingsService.instance = new CryptoHoldingsService();
+    }
+    return CryptoHoldingsService.instance;
+  }
+
+  async getCryptoHoldings(walletId: string): Promise<CryptoHolding[]> {
     try {
-      const walletData = await this.getWallet();
+      // Get holdings directly from the crypto-holdings endpoint
       const response = await axios.get<CryptoHoldingsResponse>(
-        `${this.apiUrl}/${walletData.id}/holdings`
+        `${this.apiUrl}/crypto-holdings/${walletId}/holdings`
       );
       return response.data.holdings;
     } catch (error) {
@@ -34,24 +45,37 @@ class CryptoHoldingsService {
 
   async updateHolding(data: UpdateHoldingDto): Promise<CryptoHolding> {
     try {
-      // First get current holding if it exists
-      const currentHoldings = await this.getCryptoHoldings();
+      // Get current holdings directly using walletId
+      const currentHoldings = await this.getCryptoHoldings(data.walletId);
       const existingHolding = currentHoldings.find(
-        (h) => h.symbol === data.symbol
+        (h) =>
+          h.symbol.toUpperCase() ===
+          data.symbol.replace("USDT", "").toUpperCase()
       );
 
-      const updatedAmount =
-        data.transactionType === "BUY"
-          ? (existingHolding?.amount || 0) + data.amount
-          : (existingHolding?.amount || 0) - data.amount;
+      let updatedAmount: number;
 
-      if (updatedAmount < 0) {
-        throw new Error("Insufficient balance for this sale");
+      if (data.transactionType === "BUY") {
+        // For buying, add to existing amount or start with the purchase amount
+        updatedAmount = (existingHolding?.amount || 0) + data.amount;
+      } else {
+        // For selling, check if we have enough balance
+        if (!existingHolding || existingHolding.amount < data.amount) {
+          throw new Error(
+            `Insufficient ${data.symbol.replace(
+              "USDT",
+              ""
+            )} balance. Available: ${existingHolding?.amount || 0}`
+          );
+        }
+        updatedAmount = existingHolding.amount - data.amount;
       }
 
-      // Update or create holding
+      // Update the holding through the API
       const response = await axios.put<CryptoHolding>(
-        `${this.apiUrl}/${data.walletId}/holdings/${data.symbol}`,
+        `${this.apiUrl}/crypto-holdings/${
+          data.walletId
+        }/holdings/${data.symbol.replace("USDT", "")}`,
         {
           amount: updatedAmount,
         }
@@ -66,37 +90,6 @@ class CryptoHoldingsService {
       throw new Error("Failed to update crypto holding");
     }
   }
-
-  private async getWallet(): Promise<WalletData> {
-    const token = localStorage.getItem("token");
-    const userData = JSON.parse(localStorage.getItem("user") || "{}");
-    const user = userData.user;
-
-    if (!token || !user?.id) {
-      throw new Error("Authentication required");
-    }
-
-    try {
-      const response = await axios.get<WalletData>(`/api/wallet/${user.id}`);
-      if (!response.data || !response.data.id) {
-        throw new Error(
-          "Wallet not found. Please ensure you have created a wallet."
-        );
-      }
-      return response.data;
-    } catch (error) {
-      const axiosError = error as AxiosError<ApiError>;
-      if (axiosError.response?.status === 401) {
-        throw new Error("Authentication failed. Please log in again.");
-      }
-      if (axiosError.response?.status === 404) {
-        throw new Error(
-          "Wallet not found. Please ensure you have created a wallet."
-        );
-      }
-      throw error;
-    }
-  }
 }
 
-export default CryptoHoldingsService;
+export default CryptoHoldingsService.getInstance();

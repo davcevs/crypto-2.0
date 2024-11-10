@@ -4,9 +4,7 @@ import {
   TransactionStats,
   CreateTransactionDto,
 } from "../../types/transaction.types";
-import CryptoHoldingsService from "./cryptoHoldingsService";
-
-const holdingsService = new CryptoHoldingsService();
+import cryptoHoldingsService from "./cryptoHoldingsService";
 
 export const transactionService = {
   createTransaction: async (
@@ -15,8 +13,8 @@ export const transactionService = {
     // First create the transaction
     const response = await api.post("/transactions", data);
 
-    // Then update the holdings
-    await holdingsService.updateHolding({
+    // Then update the holdings using the singleton
+    await cryptoHoldingsService.updateHolding({
       walletId: data.walletId,
       symbol: data.symbol,
       amount: data.amount,

@@ -1,96 +1,258 @@
-import React, { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
-import { motion } from "framer-motion";
+import { useState, useEffect } from "react";
+import { RefreshCcw } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import {
+  cryptoService,
+  TRADING_PAIRS,
+  MINIMUM_TRADE_AMOUNTS,
+} from "../services/cryptoService";
 import {
   LineChart,
   Line,
   XAxis,
   YAxis,
+  CartesianGrid,
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
 
-interface OrderBook {
-  price: number;
-  amount: number;
-  total: number;
-}
+const CryptoTrading = () => {
+  const [selectedPair, setSelectedPair] = useState<string>(TRADING_PAIRS[0]);
+  const [prices, setPrices] = useState<Record<string, number>>({});
+  const [priceChanges, setPriceChanges] = useState<Record<string, number>>({});
+  const [amount, setAmount] = useState<string>("");
+  const [total, setTotal] = useState<string>("");
+  const [historicalData, setHistoricalData] = useState<any[]>([]);
+  const [walletData, setWalletData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-interface Trade {
-  price: number;
-  amount: number;
-  time: string;
-  type: "buy" | "sell";
-}
-
-const Trade = () => {
-  const { pair } = useParams();
-  const [orderType, setOrderType] = useState<"limit" | "market">("limit");
-  const [side, setSide] = useState<"buy" | "sell">("buy");
-  const [price, setPrice] = useState("");
-  const [amount, setAmount] = useState("");
-  const [chartData, setChartData] = useState([]);
-  const [asks, setAsks] = useState<OrderBook[]>([]);
-  const [bids, setBids] = useState<OrderBook[]>([]);
-  const [recentTrades, setRecentTrades] = useState<Trade[]>([]);
-
+  // Fetch initial data
   useEffect(() => {
-    // Mock data generation for demo
-    const generateMockData = () => {
-      const mockChartData = Array.from({ length: 100 }, (_, i) => ({
-        time: new Date(Date.now() - i * 3600000).toISOString(),
-        price: 45000 + Math.random() * 1000,
-      }));
-      setChartData(mockChartData.reverse());
+    const fetchInitialData = async () => {
+      try {
+        const wallet = await cryptoService.getWalletData();
+        setWalletData(wallet);
 
-      const mockAsks = Array.from({ length: 10 }, (_, i) => ({
-        price: 45000 + i * 10,
-        amount: Math.random() * 2,
-        total: Math.random() * 50000,
-      }));
-      setAsks(mockAsks);
+        // Subscribe to price updates
+        const unsubscribe = cryptoService.subscribeToPriceUpdates(
+          (newPrices) => {
+            setPrices(newPrices);
+          }
+        );
 
-      const mockBids = Array.from({ length: 10 }, (_, i) => ({
-        price: 44990 - i * 10,
-        amount: Math.random() * 2,
-        total: Math.random() * 50000,
-      }));
-      setBids(mockBids);
+        // Fetch historical data
+        const history = await cryptoService.getHistoricalPrices(selectedPair);
+        setHistoricalData(history);
 
-      const mockTrades = Array.from({ length: 20 }, () => ({
-        price: 45000 + (Math.random() - 0.5) * 100,
-        amount: Math.random() * 2,
-        time: new Date().toLocaleTimeString(),
-        type: Math.random() > 0.5 ? "buy" : ("sell" as "buy" | "sell"),
-      }));
-      setRecentTrades(mockTrades);
+        // Fetch 24h changes
+        const changes = await Promise.all(
+          TRADING_PAIRS.map(async (pair) => {
+            const stats = await cryptoService.get24HrChange(pair);
+            return [pair, stats.priceChangePercent];
+          })
+        );
+        setPriceChanges(Object.fromEntries(changes));
+
+        return () => unsubscribe();
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Failed to load trading data"
+        );
+      }
     };
 
-    generateMockData();
-    const interval = setInterval(generateMockData, 5000);
-    return () => clearInterval(interval);
+    fetchInitialData();
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // Implement order submission logic
-    console.log("Order submitted:", { orderType, side, price, amount });
+  // Update historical data when pair changes
+  useEffect(() => {
+    const fetchHistory = async () => {
+      const history = await cryptoService.getHistoricalPrices(selectedPair);
+      setHistoricalData(history);
+    };
+    fetchHistory();
+  }, [selectedPair]);
+
+  const handleBuy = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      if (!amount || !total) {
+        throw new Error("Please enter amount and total");
+      }
+
+      if (!walletData?.userId) {
+        throw new Error("User data not found. Please log in again.");
+      }
+
+      const numAmount = parseFloat(amount);
+      if (
+        numAmount <
+        MINIMUM_TRADE_AMOUNTS[
+          selectedPair as keyof typeof MINIMUM_TRADE_AMOUNTS
+        ]
+      ) {
+        throw new Error(
+          `Minimum trade amount is ${
+            MINIMUM_TRADE_AMOUNTS[
+              selectedPair as keyof typeof MINIMUM_TRADE_AMOUNTS
+            ]
+          } ${selectedPair}`
+        );
+      }
+
+      await cryptoService.buyCrypto({
+        userId: walletData.userId,
+        walletId: walletData.walletId,
+        symbol: selectedPair,
+        amount: numAmount,
+      });
+
+      // Refresh wallet data
+      const updatedWallet = await cryptoService.getWalletData();
+      setWalletData(updatedWallet);
+      setAmount("");
+      setTotal("");
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to execute buy order"
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSell = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      if (!amount || !total) {
+        throw new Error("Please enter amount and total");
+      }
+
+      if (!walletData?.userId) {
+        throw new Error("User data not found. Please log in again.");
+      }
+
+      const numAmount = parseFloat(amount);
+      if (
+        numAmount <
+        MINIMUM_TRADE_AMOUNTS[
+          selectedPair as keyof typeof MINIMUM_TRADE_AMOUNTS
+        ]
+      ) {
+        throw new Error(
+          `Minimum trade amount is ${
+            MINIMUM_TRADE_AMOUNTS[
+              selectedPair as keyof typeof MINIMUM_TRADE_AMOUNTS
+            ]
+          } ${selectedPair}`
+        );
+      }
+
+      await cryptoService.sellCrypto({
+        userId: walletData.userId,
+        walletId: walletData.walletId,
+        symbol: selectedPair,
+        amount: numAmount,
+      });
+
+      // Refresh wallet data
+      const updatedWallet = await cryptoService.getWalletData();
+      setWalletData(updatedWallet);
+      setAmount("");
+      setTotal("");
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to execute sell order"
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+  const handleAmountChange = (value: string) => {
+    setAmount(value);
+    const currentPrice = prices[selectedPair] || 0;
+    setTotal((parseFloat(value) * currentPrice).toFixed(2));
+  };
+
+  const handleTotalChange = (value: string) => {
+    setTotal(value);
+    const currentPrice = prices[selectedPair] || 0;
+    setAmount((parseFloat(value) / currentPrice).toFixed(8));
   };
 
   return (
-    <div className="min-h-screen bg-black pt-16">
-      <div className="max-w-7xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Chart Section */}
-        <div className="lg:col-span-2 bg-gray-900 rounded-xl p-4">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="h-[400px]"
-          >
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 p-4">
+      {/* Left Column - Trading Pairs */}
+      <Card className="lg:col-span-1">
+        <CardHeader>
+          <CardTitle>Trading Pairs</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            {TRADING_PAIRS.map((pair) => (
+              <div
+                key={pair}
+                onClick={() => setSelectedPair(pair)}
+                className={`flex justify-between items-center p-3 rounded cursor-pointer hover:bg-gray-100 ${
+                  selectedPair === pair ? "bg-gray-100" : ""
+                }`}
+              >
+                <span className="font-medium">{pair}</span>
+                <div className="flex flex-col items-end">
+                  <span>${prices[pair]?.toFixed(2) || "0.00"}</span>
+                  <span
+                    className={`text-sm ${
+                      (priceChanges[pair] || 0) >= 0
+                        ? "text-green-500"
+                        : "text-red-500"
+                    }`}
+                  >
+                    {(priceChanges[pair] || 0).toFixed(2)}%
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Middle Column - Chart and Trading */}
+      <Card className="lg:col-span-2">
+        <CardHeader>
+          <div className="flex justify-between items-center">
+            <CardTitle>{selectedPair} Chart</CardTitle>
+            <div className="flex items-center space-x-2">
+              <span className="text-2xl font-bold">
+                ${prices[selectedPair]?.toFixed(2) || "0.00"}
+              </span>
+              <span
+                className={`text-sm ${
+                  (priceChanges[selectedPair] || 0) >= 0
+                    ? "text-green-500"
+                    : "text-red-500"
+                }`}
+              >
+                {(priceChanges[selectedPair] || 0).toFixed(2)}%
+              </span>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {/* Price Chart */}
+          <div className="h-[300px] mb-6">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData}>
+              <LineChart data={historicalData}>
+                <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="time" />
-                <YAxis domain={["auto", "auto"]} />
+                <YAxis />
                 <Tooltip />
                 <Line
                   type="monotone"
@@ -100,397 +262,117 @@ const Trade = () => {
                 />
               </LineChart>
             </ResponsiveContainer>
-          </motion.div>
-        </div>
+          </div>
 
-        {/* Order Form */}
-        <div className="bg-gray-900 rounded-xl p-4">
-          <motion.form
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            onSubmit={handleSubmit}
-            className="space-y-4"
-          >
-            <div className="flex space-x-2 mb-4">
-              <button
-                type="button"
-                onClick={() => setSide("buy")}
-                className={`flex-1 py-2 rounded-lg ${
-                  side === "buy"
-                    ? "bg-green-500 text-white"
-                    : "bg-gray-800 text-gray-300"
-                }`}
-              >
-                Buy
-              </button>
-              <button
-                type="button"
-                onClick={() => setSide("sell")}
-                className={`flex-1 py-2 rounded-lg ${
-                  side === "sell"
-                    ? "bg-red-500 text-white"
-                    : "bg-gray-800 text-gray-300"
-                }`}
-              >
-                Sell
-              </button>
-            </div>
+          {/* Trading Interface */}
+          <Tabs defaultValue="buy">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="buy">Buy</TabsTrigger>
+              <TabsTrigger value="sell">Sell</TabsTrigger>
+            </TabsList>
 
-            <div className="space-y-2">
-              <label className="block text-sm text-gray-400">Price</label>
-              <input
-                type="number"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                className="w-full bg-gray-800 rounded-lg p-2 text-white"
-                placeholder="0.00"
-              />
-            </div>
+            <TabsContent value="buy">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm">Amount</label>
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      value={amount}
+                      onChange={(e) => handleAmountChange(e.target.value)}
+                      placeholder="0.00"
+                    />
+                    <span className="absolute right-3 top-2 text-gray-500">
+                      {selectedPair.replace("USDT", "")}
+                    </span>
+                  </div>
+                </div>
 
-            <div className="space-y-2">
-              <label className="block text-sm text-gray-400">Amount</label>
-              <input
-                type="number"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                className="w-full bg-gray-800 rounded-lg p-2 text-white"
-                placeholder="0.00"
-              />
-            </div>
+                <div className="space-y-2">
+                  <label className="text-sm">Total</label>
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      value={total}
+                      onChange={(e) => handleTotalChange(e.target.value)}
+                      placeholder="0.00"
+                    />
+                    <span className="absolute right-3 top-2 text-gray-500">
+                      USDT
+                    </span>
+                  </div>
+                </div>
 
-            <button
-              type="submit"
-              className={`w-full py-3 rounded-lg ${
-                side === "buy"
-                  ? "bg-green-500 hover:bg-green-600"
-                  : "bg-red-500 hover:bg-red-600"
-              } text-white font-medium transition-colors`}
-            >
-              {side === "buy" ? "Buy" : "Sell"} {pair}
-            </button>
-          </motion.form>
-        </div>
-
-        {/* Order Book */}
-        <div className="lg:col-span-2 bg-gray-900 rounded-xl p-4">
-          <h3 className="text-lg font-medium mb-4">Order Book</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <div className="grid grid-cols-3 text-sm text-gray-400 mb-2">
-                <span>Price</span>
-                <span>Amount</span>
-                <span>Total</span>
+                <Button
+                  className="w-full bg-green-500 hover:bg-green-600"
+                  onClick={handleBuy}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <RefreshCcw className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    "Buy"
+                  )}
+                </Button>
               </div>
-              {asks.map((ask, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="grid grid-cols-3 text-sm text-red-500"
-                >
-                  <span>{ask.price.toFixed(2)}</span>
-                  <span>{ask.amount.toFixed(4)}</span>
-                  <span>{ask.total.toFixed(2)}</span>
-                </motion.div>
-              ))}
-            </div>
-            <div>
-              {bids.map((bid, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="grid grid-cols-3 text-sm text-green-500"
-                >
-                  <span>{bid.price.toFixed(2)}</span>
-                  <span>{bid.amount.toFixed(4)}</span>
-                  <span>{bid.total.toFixed(2)}</span>
-                </motion.div>
-              ))}
-            </div>
-          </div>
-        </div>
+            </TabsContent>
 
-        {/* Recent Trades */}
-        <div className="bg-gray-900 rounded-xl p-4">
-          <h3 className="text-lg font-medium mb-4">Recent Trades</h3>
-          <div className="space-y-2">
-            {recentTrades.map((trade, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="grid grid-cols-3 text-sm"
-              >
-                <span
-                  className={
-                    trade.type === "buy" ? "text-green-500" : "text-red-500"
-                  }
+            <TabsContent value="sell">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm">Amount</label>
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      value={amount}
+                      onChange={(e) => handleAmountChange(e.target.value)}
+                      placeholder="0.00"
+                    />
+                    <span className="absolute right-3 top-2 text-gray-500">
+                      {selectedPair.replace("USDT", "")}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm">Total</label>
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      value={total}
+                      onChange={(e) => handleTotalChange(e.target.value)}
+                      placeholder="0.00"
+                    />
+                    <span className="absolute right-3 top-2 text-gray-500">
+                      USDT
+                    </span>
+                  </div>
+                </div>
+
+                <Button
+                  className="w-full bg-red-500 hover:bg-red-600"
+                  onClick={handleSell}
+                  disabled={loading}
                 >
-                  {trade.price.toFixed(2)}
-                </span>
-                <span className="text-gray-400">{trade.amount.toFixed(4)}</span>
-                <span className="text-gray-400">{trade.time}</span>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </div>
+                  {loading ? (
+                    <RefreshCcw className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    "Sell"
+                  )}
+                </Button>
+              </div>
+            </TabsContent>
+          </Tabs>
+
+          {error && (
+            <div className="mt-4 p-3 bg-red-100 text-red-700 rounded-lg">
+              {error}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };
 
-export default Trade;
-
-// import React, { useState, useEffect, useRef } from "react";
-// import { useParams } from "react-router-dom";
-// import { createChart, ISeriesApi } from "lightweight-charts";
-// import { motion } from "framer-motion";
-
-// interface OrderBook {
-//   price: number;
-//   amount: number;
-//   total: number;
-// }
-
-// interface Trade {
-//   price: number;
-//   amount: number;
-//   time: string;
-//   type: "buy" | "sell";
-// }
-
-// const Trade = () => {
-//   const { pair } = useParams();
-//   const [orderType, setOrderType] = useState<"limit" | "market">("limit");
-//   const [side, setSide] = useState<"buy" | "sell">("buy");
-//   const [price, setPrice] = useState("");
-//   const [amount, setAmount] = useState("");
-//   const [asks, setAsks] = useState<OrderBook[]>([]);
-//   const [bids, setBids] = useState<OrderBook[]>([]);
-//   const [recentTrades, setRecentTrades] = useState<Trade[]>([]);
-//   const chartContainerRef = useRef<HTMLDivElement>(null);
-//   const [candlestickSeries, setCandlestickSeries] =
-//     useState<ISeriesApi<"Candlestick"> | null>(null);
-
-//   // Initialize the chart on mount
-//   useEffect(() => {
-//     if (chartContainerRef.current) {
-//       const chart = createChart(chartContainerRef.current, {
-//         width: chartContainerRef.current.clientWidth,
-//         height: 400,
-//         layout: { backgroundColor: "#000", textColor: "#d1d4dc" },
-//         grid: { vertLines: { color: "#444" }, horzLines: { color: "#444" } },
-//       });
-
-//       const series = chart.addCandlestickSeries();
-//       setCandlestickSeries(series);
-
-//       // Clean up the chart on component unmount
-//       return () => chart.remove();
-//     }
-//   }, []);
-
-//   // Fetch data from backend and set to state
-//   useEffect(() => {
-//     const fetchData = async () => {
-//       try {
-//         const [chartResponse, orderBookResponse, tradesResponse] =
-//           await Promise.all([
-//             fetch(`/api/chart/${pair}`),
-//             fetch(`/api/orderBook/${pair}`),
-//             fetch(`/api/recentTrades/${pair}`),
-//           ]);
-//         const chartData = await chartResponse.json();
-//         const orderBookData = await orderBookResponse.json();
-//         const tradesData = await tradesResponse.json();
-
-//         candlestickSeries?.setData(chartData); // Set chart data
-//         setAsks(orderBookData.asks);
-//         setBids(orderBookData.bids);
-//         setRecentTrades(tradesData);
-//       } catch (error) {
-//         console.error("Error fetching data:", error);
-//       }
-//     };
-
-//     fetchData();
-//     const interval = setInterval(fetchData, 5000); // Fetch data every 5 seconds
-
-//     return () => clearInterval(interval);
-//   }, [pair, candlestickSeries]);
-
-//   const handleSubmit = async (e: React.FormEvent) => {
-//     e.preventDefault();
-
-//     const orderDetails = { orderType, side, price, amount, pair };
-//     try {
-//       const response = await fetch("/api/placeOrder", {
-//         method: "POST",
-//         headers: { "Content-Type": "application/json" },
-//         body: JSON.stringify(orderDetails),
-//       });
-//       if (response.ok) {
-//         console.log("Order placed successfully");
-//         setPrice("");
-//         setAmount("");
-//       } else {
-//         console.error("Error placing order");
-//       }
-//     } catch (error) {
-//       console.error("Error:", error);
-//     }
-//   };
-
-//   return (
-//     <div className="min-h-screen bg-black pt-16">
-//       <div className="max-w-7xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
-//         {/* Chart Section */}
-//         <div className="lg:col-span-2 bg-gray-900 rounded-xl p-4">
-//           <motion.div
-//             initial={{ opacity: 0 }}
-//             animate={{ opacity: 1 }}
-//             className="h-[400px]"
-//           >
-//             <div ref={chartContainerRef} className="w-full h-full" />
-//           </motion.div>
-//         </div>
-
-//         {/* Order Form */}
-//         <div className="bg-gray-900 rounded-xl p-4">
-//           <motion.form
-//             initial={{ opacity: 0, y: 20 }}
-//             animate={{ opacity: 1, y: 0 }}
-//             onSubmit={handleSubmit}
-//             className="space-y-4"
-//           >
-//             <div className="flex space-x-2 mb-4">
-//               <button
-//                 type="button"
-//                 onClick={() => setSide("buy")}
-//                 className={`flex-1 py-2 rounded-lg ${
-//                   side === "buy"
-//                     ? "bg-green-500 text-white"
-//                     : "bg-gray-800 text-gray-300"
-//                 }`}
-//               >
-//                 Buy
-//               </button>
-//               <button
-//                 type="button"
-//                 onClick={() => setSide("sell")}
-//                 className={`flex-1 py-2 rounded-lg ${
-//                   side === "sell"
-//                     ? "bg-red-500 text-white"
-//                     : "bg-gray-800 text-gray-300"
-//                 }`}
-//               >
-//                 Sell
-//               </button>
-//             </div>
-
-//             <div className="space-y-2">
-//               <label className="block text-sm text-gray-400">Price</label>
-//               <input
-//                 type="number"
-//                 value={price}
-//                 onChange={(e) => setPrice(e.target.value)}
-//                 className="w-full bg-gray-800 rounded-lg p-2 text-white"
-//                 placeholder="0.00"
-//               />
-//             </div>
-
-//             <div className="space-y-2">
-//               <label className="block text-sm text-gray-400">Amount</label>
-//               <input
-//                 type="number"
-//                 value={amount}
-//                 onChange={(e) => setAmount(e.target.value)}
-//                 className="w-full bg-gray-800 rounded-lg p-2 text-white"
-//                 placeholder="0.00"
-//               />
-//             </div>
-
-//             <button
-//               type="submit"
-//               className={`w-full py-3 rounded-lg ${
-//                 side === "buy"
-//                   ? "bg-green-500 hover:bg-green-600"
-//                   : "bg-red-500 hover:bg-red-600"
-//               } text-white font-medium transition-colors`}
-//             >
-//               {side === "buy" ? "Buy" : "Sell"} {pair}
-//             </button>
-//           </motion.form>
-//         </div>
-
-//         {/* Order Book */}
-//         <div className="lg:col-span-2 bg-gray-900 rounded-xl p-4">
-//           <h3 className="text-lg font-medium mb-4">Order Book</h3>
-//           <div className="grid grid-cols-2 gap-4">
-//             <div>
-//               <div className="grid grid-cols-3 text-sm text-gray-400 mb-2">
-//                 <span>Price</span>
-//                 <span>Amount</span>
-//                 <span>Total</span>
-//               </div>
-//               {asks.map((ask, i) => (
-//                 <motion.div
-//                   key={i}
-//                   initial={{ opacity: 0 }}
-//                   animate={{ opacity: 1 }}
-//                   className="grid grid-cols-3 text-sm text-red-500"
-//                 >
-//                   <span>{ask.price.toFixed(2)}</span>
-//                   <span>{ask.amount.toFixed(4)}</span>
-//                   <span>{ask.total.toFixed(2)}</span>
-//                 </motion.div>
-//               ))}
-//             </div>
-//             <div>
-//               {bids.map((bid, i) => (
-//                 <motion.div
-//                   key={i}
-//                   initial={{ opacity: 0 }}
-//                   animate={{ opacity: 1 }}
-//                   className="grid grid-cols-3 text-sm text-green-500"
-//                 >
-//                   <span>{bid.price.toFixed(2)}</span>
-//                   <span>{bid.amount.toFixed(4)}</span>
-//                   <span>{bid.total.toFixed(2)}</span>
-//                 </motion.div>
-//               ))}
-//             </div>
-//           </div>
-//         </div>
-
-//         {/* Recent Trades */}
-//         <div className="bg-gray-900 rounded-xl p-4">
-//           <h3 className="text-lg font-medium mb-4">Recent Trades</h3>
-//           <div className="space-y-2">
-//             {recentTrades.map((trade, i) => (
-//               <motion.div
-//                 key={i}
-//                 initial={{ opacity: 0 }}
-//                 animate={{ opacity: 1 }}
-//                 className="grid grid-cols-3 text-sm"
-//               >
-//                 <span
-//                   className={
-//                     trade.type === "buy" ? "text-green-500" : "text-red-500"
-//                   }
-//                 >
-//                   {trade.price.toFixed(2)}
-//                 </span>
-//                 <span className="text-gray-400">{trade.amount.toFixed(4)}</span>
-//                 <span className="text-gray-400">{trade.time}</span>
-//               </motion.div>
-//             ))}
-//           </div>
-//         </div>
-//       </div>
-//     </div>
-//   );
-// };
-
-// export default Trade;
+export default CryptoTrading;
