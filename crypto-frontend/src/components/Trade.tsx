@@ -91,19 +91,14 @@ const CryptoTrading = () => {
       }
 
       const numAmount = parseFloat(amount);
-      if (
-        numAmount <
-        MINIMUM_TRADE_AMOUNTS[
-          selectedPair as keyof typeof MINIMUM_TRADE_AMOUNTS
-        ]
-      ) {
-        throw new Error(
-          `Minimum trade amount is ${
-            MINIMUM_TRADE_AMOUNTS[
-              selectedPair as keyof typeof MINIMUM_TRADE_AMOUNTS
-            ]
-          } ${selectedPair}`
-        );
+      const currentPrice = prices[selectedPair];
+
+      if (!currentPrice) {
+        throw new Error("Current price not available");
+      }
+
+      if (parseFloat(total) > (walletData.cashBalance || 0)) {
+        throw new Error("Insufficient USDT balance");
       }
 
       await cryptoService.buyCrypto({
@@ -119,6 +114,7 @@ const CryptoTrading = () => {
       setAmount("");
       setTotal("");
     } catch (err) {
+      console.error("Buy error:", err);
       setError(
         err instanceof Error ? err.message : "Failed to execute buy order"
       );
@@ -141,18 +137,20 @@ const CryptoTrading = () => {
       }
 
       const numAmount = parseFloat(amount);
-      if (
-        numAmount <
-        MINIMUM_TRADE_AMOUNTS[
-          selectedPair as keyof typeof MINIMUM_TRADE_AMOUNTS
-        ]
-      ) {
+      const holding = walletData.holdings?.find(
+        (h) => h.symbol === selectedPair
+      );
+
+      if (!holding) {
+        throw new Error(`No ${selectedPair} holdings found`);
+      }
+
+      if (numAmount > holding.amount) {
         throw new Error(
-          `Minimum trade amount is ${
-            MINIMUM_TRADE_AMOUNTS[
-              selectedPair as keyof typeof MINIMUM_TRADE_AMOUNTS
-            ]
-          } ${selectedPair}`
+          `Insufficient ${selectedPair.replace(
+            "USDT",
+            ""
+          )} balance. You have: ${holding.amount}`
         );
       }
 
@@ -169,6 +167,7 @@ const CryptoTrading = () => {
       setAmount("");
       setTotal("");
     } catch (err) {
+      console.error("Sell error:", err);
       setError(
         err instanceof Error ? err.message : "Failed to execute sell order"
       );

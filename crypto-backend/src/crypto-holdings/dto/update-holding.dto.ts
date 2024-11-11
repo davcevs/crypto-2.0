@@ -2,6 +2,8 @@ import { IsNumber, Min } from 'class-validator';
 
 export class UpdateHoldingDto {
   @IsNumber()
-  @Min(0)
   amount: number;
+  @IsNumber()
+  price: number;
+  type: 'BUY' | 'SELL';
 }

@@ -1,4 +1,4 @@
-import axios, { AxiosError } from "axios";
+import axios, { AxiosError, AxiosInstance } from "axios";
 import {
   CryptoHolding,
   CryptoHoldingsResponse,
@@ -10,14 +10,42 @@ interface UpdateHoldingDto {
   symbol: string;
   amount: number;
   transactionType: "BUY" | "SELL";
+  price?: number; // Add price for average calculation
 }
 
 class CryptoHoldingsService {
   private static instance: CryptoHoldingsService;
   private apiUrl: string;
+  private axiosInstance: AxiosInstance;
 
   private constructor() {
     this.apiUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+
+    this.axiosInstance = axios.create({
+      baseURL: this.apiUrl,
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    this.axiosInstance.interceptors.request.use((config) => {
+      const token = localStorage.getItem("token");
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+      return config;
+    });
+
+    this.axiosInstance.interceptors.response.use(
+      (response) => response,
+      (error: AxiosError<ApiError>) => {
+        if (error.response?.status === 401) {
+          localStorage.removeItem("token");
+          window.dispatchEvent(new Event("UNAUTHORIZED"));
+        }
+        return Promise.reject(error);
+      }
+    );
   }
 
   public static getInstance(): CryptoHoldingsService {
@@ -29,62 +57,47 @@ class CryptoHoldingsService {
 
   async getCryptoHoldings(walletId: string): Promise<CryptoHolding[]> {
     try {
-      // Get holdings directly from the crypto-holdings endpoint
-      const response = await axios.get<CryptoHoldingsResponse>(
-        `${this.apiUrl}/crypto-holdings/${walletId}/holdings`
+      const response = await this.axiosInstance.get<CryptoHoldingsResponse>(
+        `/crypto-holdings/${walletId}/holdings`
       );
       return response.data.holdings;
     } catch (error) {
       const axiosError = error as AxiosError<ApiError>;
+      if (axiosError.response?.status === 401) {
+        throw new Error("Unauthorized: Please log in again");
+      }
       if (axiosError.response) {
-        throw new Error(axiosError.response.data.message);
+        throw new Error(
+          axiosError.response.data.message || "Failed to fetch crypto holdings"
+        );
       }
       throw new Error("Failed to fetch crypto holdings");
     }
   }
 
-  async updateHolding(data: UpdateHoldingDto): Promise<CryptoHolding> {
+  async updateHolding({
+    walletId,
+    symbol,
+    amount,
+    transactionType,
+    price,
+  }: UpdateHoldingDto): Promise<CryptoHolding> {
     try {
-      // Get current holdings directly using walletId
-      const currentHoldings = await this.getCryptoHoldings(data.walletId);
-      const existingHolding = currentHoldings.find(
-        (h) =>
-          h.symbol.toUpperCase() ===
-          data.symbol.replace("USDT", "").toUpperCase()
-      );
-
-      let updatedAmount: number;
-
-      if (data.transactionType === "BUY") {
-        // For buying, add to existing amount or start with the purchase amount
-        updatedAmount = (existingHolding?.amount || 0) + data.amount;
-      } else {
-        // For selling, check if we have enough balance
-        if (!existingHolding || existingHolding.amount < data.amount) {
-          throw new Error(
-            `Insufficient ${data.symbol.replace(
-              "USDT",
-              ""
-            )} balance. Available: ${existingHolding?.amount || 0}`
-          );
-        }
-        updatedAmount = existingHolding.amount - data.amount;
-      }
-
-      // Update the holding through the API
-      const response = await axios.put<CryptoHolding>(
-        `${this.apiUrl}/crypto-holdings/${
-          data.walletId
-        }/holdings/${data.symbol.replace("USDT", "")}`,
+      const response = await this.axiosInstance.put(
+        `/crypto-holdings/${walletId}/holdings/${symbol}`,
         {
-          amount: updatedAmount,
+          amount,
+          price,
+          type: transactionType,
         }
       );
-
       return response.data;
     } catch (error) {
       const axiosError = error as AxiosError<ApiError>;
-      if (axiosError.response) {
+      if (axiosError.response?.status === 401) {
+        throw new Error("Unauthorized: Please log in again");
+      }
+      if (axiosError.response?.data?.message) {
         throw new Error(axiosError.response.data.message);
       }
       throw new Error("Failed to update crypto holding");

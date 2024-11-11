@@ -25,6 +25,8 @@ export class CryptoHoldingsController {
       walletId,
       symbol,
       updateHoldingDto.amount,
+      updateHoldingDto.price,
+      updateHoldingDto.type,
     );
   }
 }

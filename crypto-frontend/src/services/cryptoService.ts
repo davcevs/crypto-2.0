@@ -243,19 +243,23 @@ export class CryptoService {
 
   public async getWalletData(): Promise<WalletData> {
     try {
-      const userData = this.getUserData(); // Get user data first
+      const userData = this.getUserData();
       const walletId = await this.getWalletId();
+
+      // Get the basic wallet data
       const response = await this.axiosInstance.get(`/wallet/${walletId}`);
 
+      // Get the crypto holdings
+      const holdings = await cryptoHoldingsService.getCryptoHoldings(walletId);
+
       console.log("Raw wallet response:", response.data);
+      console.log("Current holdings:", holdings);
 
       // Ensure the response data has the expected structure
       const walletData: WalletData = {
         walletId: response.data.walletId,
-        userId: userData.id, // Add the userId from userData
-        holdings: Array.isArray(response.data.holdings)
-          ? response.data.holdings
-          : [],
+        userId: userData.id,
+        holdings: holdings, // Use the holdings from cryptoHoldingsService
         cashBalance: parseFloat(response.data.cashBalance),
         balances: Array.isArray(response.data.balances)
           ? response.data.balances
@@ -272,28 +276,50 @@ export class CryptoService {
   public async buyCrypto(dto: BuySellCryptoDto): Promise<void> {
     try {
       const walletId = await this.getWalletId();
+      const currentPrice = await this.getPrice(dto.symbol);
 
-      // First update the holdings
-      await cryptoHoldingsService.updateHolding({
-        walletId,
-        symbol: dto.symbol,
-        amount: dto.amount,
-        transactionType: "BUY",
-      });
+      // Get current holdings first
+      let currentHoldings;
+      try {
+        currentHoldings = await cryptoHoldingsService.getCryptoHoldings(
+          walletId
+        );
+      } catch (e) {
+        currentHoldings = [];
+      }
 
-      // Then process the transaction
+      // Find current holding for this symbol
+      const existingHolding = currentHoldings.find(
+        (h) => h.symbol === dto.symbol
+      );
+      const newAmount = existingHolding
+        ? existingHolding.amount + dto.amount
+        : dto.amount;
+
+      // Process the transaction first
       const requestBody = {
         userId: dto.userId,
         walletId: walletId,
         symbol: dto.symbol,
         amount: dto.amount,
+        price: currentPrice,
       };
 
       await this.axiosInstance.post(`/wallet/${walletId}/buy`, requestBody);
 
+      // Then update the holdings with accumulated amount
+      await cryptoHoldingsService.updateHolding({
+        walletId,
+        symbol: dto.symbol,
+        amount: newAmount, // Use accumulated amount
+        transactionType: "BUY",
+        price: currentPrice,
+      });
+
       // Invalidate the cache
       this.cachedWalletId = null;
     } catch (error: any) {
+      console.error("Buy error details:", error.response?.data);
       if (error.response?.data?.message) {
         throw new Error(error.response.data.message);
       } else if (error.response?.status === 401) {
@@ -319,28 +345,52 @@ export class CryptoService {
   public async sellCrypto(dto: BuySellCryptoDto): Promise<void> {
     try {
       const walletId = await this.getWalletId();
+      const currentPrice = await this.getPrice(dto.symbol);
 
-      // First check and update the holdings
-      await cryptoHoldingsService.updateHolding({
-        walletId,
-        symbol: dto.symbol,
-        amount: dto.amount,
-        transactionType: "SELL",
-      });
+      // Get current holdings first
+      const currentHoldings = await cryptoHoldingsService.getCryptoHoldings(
+        walletId
+      );
+      const existingHolding = currentHoldings.find(
+        (h) => h.symbol === dto.symbol
+      );
 
-      // Then process the transaction
+      if (!existingHolding) {
+        throw new Error(`No holdings found for ${dto.symbol}`);
+      }
+
+      if (existingHolding.amount < dto.amount) {
+        throw new Error(
+          `Insufficient balance. You only have ${existingHolding.amount} ${dto.symbol}`
+        );
+      }
+
+      const newAmount = existingHolding.amount - dto.amount;
+
+      // Process the sell transaction
       const requestBody = {
         userId: dto.userId,
         walletId: walletId,
         symbol: dto.symbol,
         amount: dto.amount,
+        price: currentPrice,
       };
 
       await this.axiosInstance.post(`/wallet/${walletId}/sell`, requestBody);
 
+      // Update holdings with new amount
+      await cryptoHoldingsService.updateHolding({
+        walletId,
+        symbol: dto.symbol,
+        amount: newAmount,
+        transactionType: "SELL",
+        price: currentPrice,
+      });
+
       // Invalidate the cache
       this.cachedWalletId = null;
     } catch (error: any) {
+      console.error("Sell error details:", error.response?.data);
       if (error.response?.data?.message) {
         throw new Error(error.response.data.message);
       } else if (error.response?.status === 401) {
@@ -355,6 +405,10 @@ export class CryptoService {
       } else if (error.response?.status === 400) {
         throw new Error(
           "Invalid sell request. Please check your input parameters."
+        );
+      } else if (error.response?.status === 500) {
+        throw new Error(
+          "Server error. Please try again later or contact support."
         );
       }
       throw new Error(

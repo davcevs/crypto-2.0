@@ -24,7 +24,9 @@ export class CryptoHoldingsService {
   async updateHoldingAmount(
     walletId: string,
     symbol: string,
-    newAmount: number,
+    amount: number,
+    price: number,
+    type: 'BUY' | 'SELL',
   ): Promise<CryptoHolding> {
     const wallet = await this.walletRepository.findOne({
       where: { walletId },
@@ -39,27 +41,54 @@ export class CryptoHoldingsService {
       relations: ['wallet'],
     });
 
-    if (newAmount === 0) {
-      if (holding) {
-        await this.cryptoHoldingRepository.remove(holding);
-      }
-      return null;
-    }
-
     if (!holding) {
+      if (type === 'SELL') {
+        throw new BadRequestException(`No ${symbol} holdings found to sell`);
+      }
+
       holding = this.cryptoHoldingRepository.create({
         wallet,
         symbol,
-        amount: newAmount,
-        averageBuyPrice: 0, // You might want to calculate this based on the last transaction
+        amount: 0,
+        averageBuyPrice: 0,
       });
-    } else {
-      holding.amount = newAmount;
     }
+
+    // Update holding based on transaction type
+    if (type === 'BUY') {
+      const totalCurrentValue = holding.amount * holding.averageBuyPrice;
+      const newValue = amount * price;
+      const totalAmount = holding.amount + amount;
+
+      holding.amount = totalAmount;
+      holding.averageBuyPrice = (totalCurrentValue + newValue) / totalAmount;
+    } else {
+      if (holding.amount < amount) {
+        throw new BadRequestException(
+          `Insufficient ${symbol} balance. Available: ${holding.amount}`,
+        );
+      }
+      holding.amount -= amount;
+    }
+
+    if (holding.amount === 0) {
+      await this.cryptoHoldingRepository.remove(holding);
+      return null;
+    }
+
+    // Create transaction record
+    const transaction = this.transactionRepository.create({
+      wallet,
+      type,
+      symbol,
+      amount,
+      price,
+      total: amount * price,
+    });
+    await this.transactionRepository.save(transaction);
 
     return await this.cryptoHoldingRepository.save(holding);
   }
-
   async updateHoldings(
     wallet: Wallet,
     symbol: string,
