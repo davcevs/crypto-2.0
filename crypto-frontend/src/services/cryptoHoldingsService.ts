@@ -10,7 +10,7 @@ interface UpdateHoldingDto {
   symbol: string;
   amount: number;
   transactionType: "BUY" | "SELL";
-  price?: number; // Add price for average calculation
+  price: number; // Make price required, not optional
 }
 
 class CryptoHoldingsService {
@@ -83,6 +83,14 @@ class CryptoHoldingsService {
     price,
   }: UpdateHoldingDto): Promise<CryptoHolding> {
     try {
+      console.log('Updating holding with:', {
+        walletId,
+        symbol,
+        amount,
+        transactionType,
+        price,
+      });
+
       const response = await this.axiosInstance.put(
         `/crypto-holdings/${walletId}/holdings/${symbol}`,
         {
@@ -94,6 +102,11 @@ class CryptoHoldingsService {
       return response.data;
     } catch (error) {
       const axiosError = error as AxiosError<ApiError>;
+      console.error('Update holding error:', {
+        status: axiosError.response?.status,
+        data: axiosError.response?.data,
+      });
+
       if (axiosError.response?.status === 401) {
         throw new Error("Unauthorized: Please log in again");
       }

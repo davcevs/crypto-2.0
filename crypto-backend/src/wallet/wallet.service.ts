@@ -27,7 +27,7 @@ export class WalletService {
     private userRepository: Repository<User>,
     @InjectRepository(CryptoHolding)
     private readonly cryptoHoldingsService: CryptoHoldingsService,
-  ) {}
+  ) { }
 
   async createWallet(userId: string): Promise<Wallet> {
     // First check if user exists
@@ -113,6 +113,7 @@ export class WalletService {
         throw new BadRequestException('Insufficient funds');
       }
 
+      // Find or create holding
       let holding = wallet.holdings.find((h) => h.symbol === symbol);
       if (!holding) {
         holding = this.holdingRepository.create({
@@ -121,11 +122,11 @@ export class WalletService {
           averageBuyPrice: 0,
           wallet,
         });
+        wallet.holdings.push(holding); // Add to wallet's holdings array
       }
 
-      // Update average buy price
-      const totalValue =
-        holding.amount * holding.averageBuyPrice + amount * currentPrice;
+      // Update holding
+      const totalValue = holding.amount * holding.averageBuyPrice + amount * currentPrice;
       const newTotalAmount = holding.amount + amount;
       holding.averageBuyPrice = totalValue / newTotalAmount;
       holding.amount = newTotalAmount;
@@ -143,22 +144,19 @@ export class WalletService {
       // Update wallet balance
       wallet.cashBalance -= totalCost;
 
-      await Promise.all([
-        this.holdingRepository.save(holding),
-        this.walletRepository.save(wallet),
-        this.transactionRepository.save(transaction),
-      ]);
+      // Save everything in a transaction
+      await this.walletRepository.manager.transaction(async (transactionalEntityManager) => {
+        await transactionalEntityManager.save(holding);
+        await transactionalEntityManager.save(wallet);
+        await transactionalEntityManager.save(transaction);
+      });
 
       return { success: true };
     } catch (error) {
-      if (
-        error instanceof BadRequestException ||
-        error instanceof NotFoundException
-      ) {
+      console.error('Buy crypto error:', error);
+      if (error instanceof BadRequestException || error instanceof NotFoundException) {
         throw error;
       }
-
-      console.error('Buy crypto error:', error);
       throw new BadRequestException(
         'Unable to process your trade at this time. Please try again later.',
       );
@@ -170,6 +168,8 @@ export class WalletService {
     symbol: string,
     amount: number,
   ): Promise<void> {
+    console.log('Starting sellCrypto method');
+
     const wallet = await this.walletRepository.findOne({
       where: { walletId },
       relations: ['holdings'],
@@ -184,8 +184,39 @@ export class WalletService {
       throw new BadRequestException('Insufficient crypto balance');
     }
 
-    const currentPrice = await this.binanceService.getPrice(symbol);
-    const totalValue = currentPrice * amount;
+    console.log(`Holding found: ${JSON.stringify(holding)}`);
+
+    // Fetch the current price from Binance
+    let currentPrice = await this.binanceService.getPrice(symbol);
+
+    console.log(`Raw currentPrice from Binance: ${currentPrice}`);
+
+    // Ensure currentPrice is a valid number and sanitize it
+    currentPrice = parseFloat(currentPrice.toString().replace(/[^\d.-]/g, ''));
+
+    console.log(`Sanitized currentPrice: ${currentPrice}`);
+
+    // Check if currentPrice is valid
+    if (isNaN(currentPrice)) {
+      throw new BadRequestException('Invalid price retrieved from Binance');
+    }
+
+    // Round the price to avoid extra decimals (2 decimal places)
+    currentPrice = Math.round(currentPrice * 100) / 100;
+
+    console.log(`Rounded currentPrice: ${currentPrice}`);
+
+    // Ensure the amount is a valid number
+    if (isNaN(amount) || amount <= 0) {
+      throw new BadRequestException('Invalid amount value');
+    }
+
+    console.log(`Amount to sell: ${amount}`);
+
+    // Calculate total value, rounded to 2 decimal places
+    const totalValue = parseFloat((currentPrice * amount).toFixed(2));
+
+    console.log(`Calculated totalValue: ${totalValue}`);
 
     // Create transaction record
     const transaction = this.transactionRepository.create({
@@ -197,6 +228,8 @@ export class WalletService {
       total: totalValue,
     });
 
+    console.log(`Transaction created: ${JSON.stringify(transaction)}`);
+
     // Update holding
     holding.amount -= amount;
     if (holding.amount === 0) {
@@ -205,14 +238,30 @@ export class WalletService {
       await this.holdingRepository.save(holding);
     }
 
-    // Update wallet balance
-    wallet.cashBalance += totalValue;
+    // Update wallet balance (convert cashBalance to a number before adding)
+    const currentCashBalance = parseFloat(wallet.cashBalance.toString());
+    if (isNaN(currentCashBalance)) {
+      throw new BadRequestException('Invalid wallet cash balance');
+    }
 
+    // Add the totalValue to the current cash balance
+    // Update wallet balance
+    const updatedCashBalance = currentCashBalance + totalValue;
+
+    console.log(`Updated wallet cash balance: ${updatedCashBalance}`);
+
+    // Save both the updated wallet and transaction records
+    wallet.cashBalance = parseFloat(updatedCashBalance.toFixed(2)); // Convert to number
     await Promise.all([
       this.walletRepository.save(wallet),
       this.transactionRepository.save(transaction),
     ]);
+    ;
+
+    console.log('sellCrypto method completed successfully');
   }
+
+
 
   async transferCrypto(
     fromWalletId: string,

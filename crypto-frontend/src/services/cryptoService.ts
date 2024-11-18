@@ -9,10 +9,10 @@ export interface CryptoPrice {
 }
 
 export interface BuySellCryptoDto {
-  userId: string; // Add userId to the interface
+  userId: string;
   walletId: string;
   symbol: string;
-  amount: number;
+  amount: number | string; // Allow both number and string for flexibility
 }
 
 export interface CryptoStats {
@@ -278,24 +278,6 @@ export class CryptoService {
       const walletId = await this.getWalletId();
       const currentPrice = await this.getPrice(dto.symbol);
 
-      // Get current holdings first
-      let currentHoldings;
-      try {
-        currentHoldings = await cryptoHoldingsService.getCryptoHoldings(
-          walletId
-        );
-      } catch (e) {
-        currentHoldings = [];
-      }
-
-      // Find current holding for this symbol
-      const existingHolding = currentHoldings.find(
-        (h) => h.symbol === dto.symbol
-      );
-      const newAmount = existingHolding
-        ? existingHolding.amount + dto.amount
-        : dto.amount;
-
       // Process the transaction first
       const requestBody = {
         userId: dto.userId,
@@ -307,11 +289,11 @@ export class CryptoService {
 
       await this.axiosInstance.post(`/wallet/${walletId}/buy`, requestBody);
 
-      // Then update the holdings with accumulated amount
+      // Update the holdings with the new transaction
       await cryptoHoldingsService.updateHolding({
         walletId,
         symbol: dto.symbol,
-        amount: newAmount, // Use accumulated amount
+        amount: dto.amount, // Send just the new transaction amount
         transactionType: "BUY",
         price: currentPrice,
       });
@@ -347,73 +329,96 @@ export class CryptoService {
       const walletId = await this.getWalletId();
       const currentPrice = await this.getPrice(dto.symbol);
 
+      // Ensure amount is a valid number and properly formatted
+      let numericAmount: number;
+      if (typeof dto.amount === 'string') {
+        // Remove any non-numeric characters except the first decimal point
+        const sanitizedAmount = dto.amount.replace(/[^\d.]/g, '')
+          .replace(/(\..*?)\./g, '$1'); // Keep only the first decimal point
+        numericAmount = parseFloat(sanitizedAmount);
+      } else {
+        numericAmount = dto.amount;
+      }
+
+      // Validate the parsed amount
+      if (isNaN(numericAmount) || numericAmount <= 0) {
+        throw new Error('Invalid amount: Amount must be a positive number');
+      }
+
+      // Format to a fixed number of decimal places based on the trading pair
+      const decimals = 8; // You can adjust this based on your needs
+      numericAmount = Number(numericAmount.toFixed(decimals));
+
       // Get current holdings first
-      const currentHoldings = await cryptoHoldingsService.getCryptoHoldings(
-        walletId
-      );
-      const existingHolding = currentHoldings.find(
-        (h) => h.symbol === dto.symbol
-      );
+      const holdings = await cryptoHoldingsService.getCryptoHoldings(walletId);
+      const existingHolding = holdings.find(h => h.symbol === dto.symbol);
 
       if (!existingHolding) {
         throw new Error(`No holdings found for ${dto.symbol}`);
       }
 
-      if (existingHolding.amount < dto.amount) {
-        throw new Error(
-          `Insufficient balance. You only have ${existingHolding.amount} ${dto.symbol}`
-        );
+      // Parse existing holding amount carefully
+      const currentAmount = typeof existingHolding.amount === 'string'
+        ? parseFloat(existingHolding.amount.replace(/[^\d.]/g, '').replace(/(\..*?)\./g, '$1'))
+        : existingHolding.amount;
+
+      if (isNaN(currentAmount)) {
+        throw new Error(`Invalid holding amount for ${dto.symbol}`);
       }
 
-      const newAmount = existingHolding.amount - dto.amount;
+      if (currentAmount < numericAmount) {
+        throw new Error(`Insufficient balance. You only have ${currentAmount.toFixed(8)} ${dto.symbol}`);
+      }
 
-      // Process the sell transaction
+      // Format the request body
       const requestBody = {
         userId: dto.userId,
         walletId: walletId,
         symbol: dto.symbol,
-        amount: dto.amount,
-        price: currentPrice,
+        amount: numericAmount,
+        price: currentPrice
       };
 
-      await this.axiosInstance.post(`/wallet/${walletId}/sell`, requestBody);
+      console.log('Sending sell request with body:', requestBody);
 
-      // Update holdings with new amount
-      await cryptoHoldingsService.updateHolding({
-        walletId,
-        symbol: dto.symbol,
-        amount: newAmount,
-        transactionType: "SELL",
-        price: currentPrice,
-      });
+      // Send the request to sell crypto
+      const response = await this.axiosInstance.post(
+        `/wallet/${walletId}/sell`,
+        requestBody
+      );
 
-      // Invalidate the cache
-      this.cachedWalletId = null;
+      if (response.status === 200 || response.status === 201) {
+        // Update holdings
+        await cryptoHoldingsService.updateHolding({
+          walletId,
+          symbol: dto.symbol,
+          amount: numericAmount,
+          transactionType: "SELL",
+          price: currentPrice
+        });
+
+        // Invalidate the cache
+        this.cachedWalletId = null;
+      }
+
+      return response.data;
     } catch (error: any) {
-      console.error("Sell error details:", error.response?.data);
-      if (error.response?.data?.message) {
-        throw new Error(error.response.data.message);
-      } else if (error.response?.status === 401) {
+      console.error('Sell request failed:', error);
+
+      if (error.response?.status === 401) {
         this.cachedWalletId = null;
         localStorage.removeItem("token");
         throw new Error("Unauthorized: Please log in again.");
       } else if (error.response?.status === 404) {
         this.cachedWalletId = null;
-        throw new Error(
-          "Wallet not found. Please ensure you have created a wallet."
-        );
+        throw new Error("Wallet not found. Please ensure you have created a wallet.");
       } else if (error.response?.status === 400) {
-        throw new Error(
-          "Invalid sell request. Please check your input parameters."
-        );
+        throw new Error(error.response?.data?.message || "Invalid sell request. Please check your input parameters.");
       } else if (error.response?.status === 500) {
-        throw new Error(
-          "Server error. Please try again later or contact support."
-        );
+        throw new Error("Server error occurred. Please try again.");
       }
-      throw new Error(
-        "Unable to process your trade at this time. Please try again later."
-      );
+
+      throw new Error(error.message || "Unable to process your trade at this time. Please try again later.");
     }
   }
 

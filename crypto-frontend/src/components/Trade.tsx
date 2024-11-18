@@ -136,7 +136,15 @@ const CryptoTrading = () => {
         throw new Error("User data not found. Please log in again.");
       }
 
+      // Parse and validate amount
       const numAmount = parseFloat(amount);
+      if (isNaN(numAmount) || numAmount <= 0) {
+        throw new Error("Invalid amount. Please enter a valid number");
+      }
+
+      // Format to a reasonable number of decimal places based on the trading pair
+      const formattedAmount = Number(numAmount.toFixed(8));
+
       const holding = walletData.holdings?.find(
         (h) => h.symbol === selectedPair
       );
@@ -145,20 +153,27 @@ const CryptoTrading = () => {
         throw new Error(`No ${selectedPair} holdings found`);
       }
 
-      if (numAmount > holding.amount) {
+      // Parse holding amount and ensure it's a valid number
+      const currentHoldingAmount = parseFloat(holding.amount.toString());
+      if (isNaN(currentHoldingAmount)) {
+        throw new Error("Invalid holding amount in wallet");
+      }
+
+      if (formattedAmount > currentHoldingAmount) {
         throw new Error(
           `Insufficient ${selectedPair.replace(
             "USDT",
             ""
-          )} balance. You have: ${holding.amount}`
+          )} balance. You have: ${currentHoldingAmount}`
         );
       }
 
+      // Send the formatted amount to the service
       await cryptoService.sellCrypto({
         userId: walletData.userId,
         walletId: walletData.walletId,
         symbol: selectedPair,
-        amount: numAmount,
+        amount: formattedAmount  // Send the properly formatted number
       });
 
       // Refresh wallet data
@@ -175,16 +190,44 @@ const CryptoTrading = () => {
       setLoading(false);
     }
   };
+
+
   const handleAmountChange = (value: string) => {
-    setAmount(value);
-    const currentPrice = prices[selectedPair] || 0;
-    setTotal((parseFloat(value) * currentPrice).toFixed(2));
+    // Remove any non-numeric characters except decimal point
+    const sanitizedValue = value.replace(/[^\d.]/g, '');
+    
+    // Ensure only one decimal point
+    const parts = sanitizedValue.split('.');
+    const formattedValue = parts.length > 2 
+      ? `${parts[0]}.${parts.slice(1).join('')}`
+      : sanitizedValue;
+
+    // Convert to number and validate
+    const numValue = parseFloat(formattedValue);
+    if (!isNaN(numValue) || formattedValue === "") {
+      setAmount(formattedValue);
+      const currentPrice = prices[selectedPair] || 0;
+      const calculatedTotal = (parseFloat(formattedValue || "0") * currentPrice);
+      setTotal(calculatedTotal.toFixed(2));
+    }
   };
 
   const handleTotalChange = (value: string) => {
-    setTotal(value);
+    // Remove any non-numeric characters except decimal point
+    const sanitizedValue = value.replace(/[^\d.]/g, '');
+    
+    // Ensure only one decimal point
+    const parts = sanitizedValue.split('.');
+    const formattedValue = parts.length > 2 
+      ? `${parts[0]}.${parts.slice(1).join('')}`
+      : sanitizedValue;
+
+    setTotal(formattedValue);
     const currentPrice = prices[selectedPair] || 0;
-    setAmount((parseFloat(value) / currentPrice).toFixed(8));
+    if (currentPrice > 0) {
+      const calculatedAmount = (parseFloat(formattedValue || "0") / currentPrice);
+      setAmount(calculatedAmount.toFixed(8));
+    }
   };
 
   return (

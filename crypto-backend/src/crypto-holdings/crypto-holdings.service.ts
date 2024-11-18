@@ -19,7 +19,7 @@ export class CryptoHoldingsService {
     private transactionRepository: Repository<Transaction>,
     @InjectRepository(Wallet)
     private walletRepository: Repository<Wallet>,
-  ) {}
+  ) { }
 
   async updateHoldingAmount(
     walletId: string,
@@ -30,6 +30,7 @@ export class CryptoHoldingsService {
   ): Promise<CryptoHolding> {
     const wallet = await this.walletRepository.findOne({
       where: { walletId },
+      relations: ['holdings'],
     });
 
     if (!wallet) {
@@ -54,41 +55,54 @@ export class CryptoHoldingsService {
       });
     }
 
-    // Update holding based on transaction type
-    if (type === 'BUY') {
-      const totalCurrentValue = holding.amount * holding.averageBuyPrice;
-      const newValue = amount * price;
-      const totalAmount = holding.amount + amount;
+    try {
+      await this.walletRepository.manager.transaction(async (transactionalEntityManager) => {
+        if (type === 'BUY') {
+          const totalCurrentValue = holding.amount * holding.averageBuyPrice;
+          const newValue = amount * price;
+          const totalAmount = holding.amount + amount;
 
-      holding.amount = totalAmount;
-      holding.averageBuyPrice = (totalCurrentValue + newValue) / totalAmount;
-    } else {
-      if (holding.amount < amount) {
-        throw new BadRequestException(
-          `Insufficient ${symbol} balance. Available: ${holding.amount}`,
-        );
-      }
-      holding.amount -= amount;
+          holding.amount = totalAmount;
+          holding.averageBuyPrice = (totalCurrentValue + newValue) / totalAmount;
+        } else {
+          if (holding.amount < amount) {
+            throw new BadRequestException(
+              `Insufficient ${symbol} balance. Available: ${holding.amount}`,
+            );
+          }
+          holding.amount -= amount;
+        }
+
+        // Create transaction record
+        const transaction = this.transactionRepository.create({
+          wallet,
+          type,
+          symbol,
+          amount,
+          price,
+          total: amount * price,
+        });
+
+        if (holding.amount === 0) {
+          await transactionalEntityManager.remove(holding);
+          return null;
+        } else {
+          await transactionalEntityManager.save(holding);
+        }
+
+        await transactionalEntityManager.save(transaction);
+      });
+
+      return holding;
+    } catch (error) {
+      console.error('Error updating holding:', error);
+      throw new BadRequestException(
+        error.message || 'Failed to update crypto holding',
+      );
     }
-
-    if (holding.amount === 0) {
-      await this.cryptoHoldingRepository.remove(holding);
-      return null;
-    }
-
-    // Create transaction record
-    const transaction = this.transactionRepository.create({
-      wallet,
-      type,
-      symbol,
-      amount,
-      price,
-      total: amount * price,
-    });
-    await this.transactionRepository.save(transaction);
-
-    return await this.cryptoHoldingRepository.save(holding);
   }
+
+
   async updateHoldings(
     wallet: Wallet,
     symbol: string,
