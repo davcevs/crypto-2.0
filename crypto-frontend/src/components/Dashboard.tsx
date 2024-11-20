@@ -24,6 +24,7 @@ import {
 } from "@/interfaces/WalletInterfaces";
 import axiosInstance from "@/common/axios-instance";
 import { Transaction } from "types/transaction.types";
+import { motion } from "framer-motion";
 
 interface DashboardProps {
   user: User;
@@ -157,7 +158,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     };
   }, [fetchAllData, isAutoRefresh]);
 
-  const PriceChart: React.FC<{ symbol: string }> = ({ symbol }) => {
+  const PriceChart = ({ symbol }: { symbol: string }) => {
     const data = historicalData[symbol] || [];
 
     return (
@@ -166,24 +167,26 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           <AreaChart data={data}>
             <defs>
               <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
+                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" />
+            <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.1} />
             <XAxis
               dataKey="timestamp"
               tickFormatter={(time) => new Date(time).toLocaleTimeString()}
+              stroke="#6b7280"
             />
-            <YAxis domain={["auto", "auto"]} />
+            <YAxis domain={["auto", "auto"]} stroke="#6b7280" />
             <Tooltip
               labelFormatter={(label) => new Date(label).toLocaleString()}
               formatter={(value: number) => [formatCurrency(value), "Price"]}
+              contentStyle={{ background: "#1f2937", border: "none" }}
             />
             <Area
               type="monotone"
               dataKey="price"
-              stroke="#2563eb"
+              stroke="#3b82f6"
               fillOpacity={1}
               fill="url(#colorPrice)"
             />
@@ -195,9 +198,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
 
   if (isLoading) {
     return (
-      <div className="p-6">
+      <div className="min-h-screen bg-[#181818] text-white p-6">
         <div className="flex items-center justify-center space-x-2">
-          <RefreshCw className="w-6 h-6 animate-spin" />
+          <RefreshCw className="w-6 h-6 animate-spin text-blue-500" />
           <span>Loading dashboard...</span>
         </div>
       </div>
@@ -205,149 +208,210 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="min-h-screen bg-[#181818] text-white p-6 space-y-6">
       {error && (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="grid grid-cols-1 md:grid-cols-3 gap-4"
+      >
+        <motion.div whileHover={{ y: -5 }} transition={{ duration: 0.2 }}>
+          <Card className="bg-gray-800 border-gray-700">
+            <CardHeader>
+              <CardTitle className="flex items-center text-white">
+                <Wallet className="mr-2 text-blue-400" />
+                Portfolio Value
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-white">
+                {formatCurrency(walletStats?.totalValue || 0)}
+              </div>
+              <div className="text-sm text-gray-400">
+                Cash Balance: {formatCurrency(wallet?.cashBalance || 0)}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div whileHover={{ y: -5 }} transition={{ duration: 0.2 }}>
+          <Card className="bg-gray-800 border-gray-700">
+            <CardHeader>
+              <CardTitle className="flex items-center text-white">
+                <TrendingUp className="mr-2 text-blue-400" />
+                24h Change
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div
+                className={`text-2xl font-bold ${
+                  walletStats?.dailyChange >= 0
+                    ? "text-green-400"
+                    : "text-red-400"
+                }`}
+              >
+                {formatCurrency(walletStats?.dailyChange || 0)}
+                <span className="text-lg ml-2">
+                  ({formatNumber(walletStats?.dailyChangePercentage || 0, 2)}%)
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div whileHover={{ y: -5 }} transition={{ duration: 0.2 }}>
+          <Card className="bg-gray-800 border-gray-700">
+            <CardHeader>
+              <CardTitle className="flex items-center text-white">
+                <History className="mr-2 text-blue-400" />
+                Recent Activity
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-white">
+                {transactions.length}
+              </div>
+              <div className="text-sm text-gray-400">Total Transactions</div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+      >
+        <Card className="bg-gray-800 border-gray-700">
           <CardHeader>
-            <CardTitle className="flex items-center">
-              <Wallet className="mr-2" />
-              Portfolio Value
-            </CardTitle>
+            <div className="flex justify-between items-center">
+              <CardTitle className="text-white">Assets</CardTitle>
+              <Button
+                onClick={fetchAllData}
+                variant="outline"
+                size="sm"
+                className="bg-blue-500 hover:bg-blue-600 text-white border-none"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Refresh
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(walletStats?.totalValue || 0)}
-            </div>
-            <div className="text-sm text-gray-500">
-              Cash Balance: {formatCurrency(wallet?.cashBalance || 0)}
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="text-gray-400">
+                    <th className="text-left p-2">Asset</th>
+                    <th className="text-right p-2">Balance</th>
+                    <th className="text-right p-2">Price</th>
+                    <th className="text-right p-2">24h Change</th>
+                    <th className="text-right p-2">Value</th>
+                    <th className="text-right p-2">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {holdings.map((holding) => {
+                    const market = marketData[holding.symbol];
+                    const value = holding.amount * (market?.price || 0);
+
+                    return (
+                      <motion.tr
+                        key={holding.symbol}
+                        className="border-t border-gray-700 hover:bg-gray-700/50"
+                        whileHover={{ scale: 1.01 }}
+                      >
+                        <td className="p-2">
+                          <div className="font-medium text-white">
+                            {holding.symbol}
+                          </div>
+                        </td>
+                        <td className="text-right p-2 text-gray-300">
+                          {formatNumber(holding.amount)}
+                        </td>
+                        <td className="text-right p-2 text-gray-300">
+                          {formatCurrency(market?.price || 0)}
+                        </td>
+                        <td className="text-right p-2">
+                          <span
+                            className={
+                              market?.priceChangePercent24h >= 0
+                                ? "text-green-400"
+                                : "text-red-400"
+                            }
+                          >
+                            {formatNumber(
+                              market?.priceChangePercent24h || 0,
+                              2
+                            )}
+                            %
+                          </span>
+                        </td>
+                        <td className="text-right p-2 text-gray-300">
+                          {formatCurrency(value)}
+                        </td>
+                        <td className="text-right p-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="mr-2 bg-blue-500 hover:bg-blue-600 text-white border-none"
+                          >
+                            Buy
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="bg-gray-700 hover:bg-gray-600 text-white border-none"
+                          >
+                            Sell
+                          </Button>
+                        </td>
+                      </motion.tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           </CardContent>
         </Card>
+      </motion.div>
 
-        <Card>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+        className="grid grid-cols-1 md:grid-cols-2 gap-4"
+      >
+        <Card className="bg-gray-800 border-gray-700">
           <CardHeader>
-            <CardTitle className="flex items-center">
-              <TrendingUp className="mr-2" />
-              24h Change
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div
-              className={`text-2xl font-bold ${
-                walletStats?.dailyChange >= 0
-                  ? "text-green-500"
-                  : "text-red-500"
-              }`}
-            >
-              {formatCurrency(walletStats?.dailyChange || 0)}
-              <span className="text-lg ml-2">
-                ({formatNumber(walletStats?.dailyChangePercentage || 0, 2)}%)
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <History className="mr-2" />
-              Recent Activity
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{transactions.length}</div>
-            <div className="text-sm text-gray-500">Total Transactions</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <CardTitle>Assets</CardTitle>
-            <Button onClick={fetchAllData} variant="outline" size="sm">
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Refresh
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr>
-                  <th className="text-left p-2">Asset</th>
-                  <th className="text-right p-2">Balance</th>
-                  <th className="text-right p-2">Price</th>
-                  <th className="text-right p-2">24h Change</th>
-                  <th className="text-right p-2">Value</th>
-                  <th className="text-right p-2">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {holdings.map((holding) => {
-                  const market = marketData[holding.symbol];
-                  const value = holding.amount * (market?.price || 0);
-
-                  return (
-                    <tr key={holding.symbol} className="border-t">
-                      <td className="p-2">
-                        <div className="font-medium">{holding.symbol}</div>
-                      </td>
-                      <td className="text-right p-2">
-                        {formatNumber(holding.amount)}
-                      </td>
-                      <td className="text-right p-2">
-                        {formatCurrency(market?.price || 0)}
-                      </td>
-                      <td className="text-right p-2">
-                        <span
-                          className={
-                            market?.priceChangePercent24h >= 0
-                              ? "text-green-500"
-                              : "text-red-500"
-                          }
-                        >
-                          {formatNumber(market?.priceChangePercent24h || 0, 2)}%
-                        </span>
-                      </td>
-                      <td className="text-right p-2">
-                        {formatCurrency(value)}
-                      </td>
-                      <td className="text-right p-2">
-                        <Button variant="outline" size="sm" className="mr-2">
-                          Buy
-                        </Button>
-                        <Button variant="outline" size="sm">
-                          Sell
-                        </Button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>Price Chart</CardTitle>
+            <CardTitle className="text-white">Price Chart</CardTitle>
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="24h" className="w-full">
-              <TabsList>
-                <TabsTrigger value="24h">24H</TabsTrigger>
-                <TabsTrigger value="7d">7D</TabsTrigger>
-                <TabsTrigger value="30d">30D</TabsTrigger>
+              <TabsList className="bg-gray-700">
+                <TabsTrigger
+                  value="24h"
+                  className="data-[state=active]:bg-blue-500 text-white"
+                >
+                  24H
+                </TabsTrigger>
+                <TabsTrigger
+                  value="7d"
+                  className="data-[state=active]:bg-blue-500 text-white"
+                >
+                  7D
+                </TabsTrigger>
+                <TabsTrigger
+                  value="30d"
+                  className="data-[state=active]:bg-blue-500 text-white"
+                >
+                  30D
+                </TabsTrigger>
               </TabsList>
               <TabsContent value="24h">
                 {selectedCrypto && <PriceChart symbol={selectedCrypto} />}
@@ -362,15 +426,15 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-gray-800 border-gray-700">
           <CardHeader>
-            <CardTitle>Recent Transactions</CardTitle>
+            <CardTitle className="text-white">Recent Transactions</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="overflow-y-auto max-h-64">
               <table className="w-full">
                 <thead>
-                  <tr>
+                  <tr className="text-gray-400">
                     <th className="text-left p-2">Type</th>
                     <th className="text-left p-2">Asset</th>
                     <th className="text-right p-2">Amount</th>
@@ -380,36 +444,40 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                 </thead>
                 <tbody>
                   {transactions.slice(0, 10).map((tx) => (
-                    <tr key={tx.id} className="border-t">
+                    <motion.tr
+                      key={tx.id}
+                      className="border-t border-gray-700 hover:bg-gray-700/50"
+                      whileHover={{ scale: 1.01 }}
+                    >
                       <td className="p-2">
                         <span
                           className={
                             tx.type === "BUY"
-                              ? "text-green-500"
-                              : "text-red-500"
+                              ? "text-green-400"
+                              : "text-red-400"
                           }
                         >
                           {tx.type}
                         </span>
                       </td>
-                      <td className="p-2">{tx.symbol}</td>
-                      <td className="text-right p-2">
+                      <td className="p-2 text-gray-300">{tx.symbol}</td>
+                      <td className="text-right p-2 text-gray-300">
                         {formatNumber(tx.amount)}
                       </td>
-                      <td className="text-right p-2">
+                      <td className="text-right p-2 text-gray-300">
                         {formatCurrency(tx.price)}
                       </td>
-                      <td className="text-right p-2">
+                      <td className="text-right p-2 text-gray-300">
                         {new Date(tx.createdAt).toUTCString()}
                       </td>
-                    </tr>
+                    </motion.tr>
                   ))}
                 </tbody>
               </table>
             </div>
           </CardContent>
         </Card>
-      </div>
+      </motion.div>
     </div>
   );
 };
