@@ -1,420 +1,356 @@
-import { useState, useEffect } from "react";
-import { RefreshCcw } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { DollarSign, TrendingUp, AlertTriangle, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
-  cryptoService,
-  TRADING_PAIRS,
-  MINIMUM_TRADE_AMOUNTS,
-} from "../services/cryptoService";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { User } from "@/interfaces/UserInterface";
+import { ApiError, WalletData } from "@/interfaces/WalletInterfaces";
+import axiosInstance from "./../common/axios-instance";
 
-const CryptoTrading = () => {
-  const [selectedPair, setSelectedPair] = useState<string>(TRADING_PAIRS[0]);
-  const [prices, setPrices] = useState<Record<string, number>>({});
-  const [priceChanges, setPriceChanges] = useState<Record<string, number>>({});
+interface TradePayload {
+  userId: string;
+  walletId: string;
+  symbol: string;
+  amount: number;
+}
+
+interface CryptoTradingProps {
+  onTradeComplete?: () => void;
+}
+
+const Trade: React.FC<CryptoTradingProps> = ({ onTradeComplete }) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [wallet, setWallet] = useState<WalletData | null>(null);
+  const [tradeType, setTradeType] = useState<"buy" | "sell">("buy");
+  const [symbol, setSymbol] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
-  const [total, setTotal] = useState<string>("");
-  const [historicalData, setHistoricalData] = useState<any[]>([]);
-  const [walletData, setWalletData] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [currentPrice, setCurrentPrice] = useState<number | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string>("");
+  const [isFetchingWallet, setIsFetchingWallet] = useState<boolean>(true);
 
-  // Fetch initial data
+  const supportedSymbols = ["BTC", "ETH", "BNB", "SOL", "DOT"];
+
   useEffect(() => {
-    const fetchInitialData = async () => {
+    const userData = localStorage.getItem("user");
+    if (userData) {
       try {
-        const wallet = await cryptoService.getWalletData();
-        setWalletData(wallet);
+        const parsedUser = JSON.parse(userData);
+        setUser(parsedUser);
 
-        // Subscribe to price updates
-        const unsubscribe = cryptoService.subscribeToPriceUpdates(
-          (newPrices) => {
-            setPrices(newPrices);
-          }
-        );
+        // Log the user data to verify
+        console.log("Loaded user data:", parsedUser);
 
-        // Fetch historical data
-        const history = await cryptoService.getHistoricalPrices(selectedPair);
-        setHistoricalData(history);
-
-        // Fetch 24h changes
-        const changes = await Promise.all(
-          TRADING_PAIRS.map(async (pair) => {
-            const stats = await cryptoService.get24HrChange(pair);
-            return [pair, stats.priceChangePercent];
-          })
-        );
-        setPriceChanges(Object.fromEntries(changes));
-
-        return () => unsubscribe();
+        // Immediately fetch wallet if we have user data
+        if (parsedUser?.walletId) {
+          fetchWallet(parsedUser.id, parsedUser.walletId);
+        } else {
+          setError("No wallet ID found in user data");
+          setIsFetchingWallet(false);
+        }
       } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "Failed to load trading data"
-        );
+        setError("Invalid user data");
+        console.error("Failed to parse user data:", err);
+        setIsFetchingWallet(false);
       }
-    };
-
-    fetchInitialData();
+    } else {
+      setError("User data not found");
+      setIsFetchingWallet(false);
+    }
   }, []);
 
-  // Update historical data when pair changes
-  useEffect(() => {
-    const fetchHistory = async () => {
-      const history = await cryptoService.getHistoricalPrices(selectedPair);
-      setHistoricalData(history);
-    };
-    fetchHistory();
-  }, [selectedPair]);
-
-  const handleBuy = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      if (!amount || !total) {
-        throw new Error("Please enter amount and total");
-      }
-
-      if (!walletData?.userId) {
-        throw new Error("User data not found. Please log in again.");
-      }
-
-      const numAmount = parseFloat(amount);
-      const currentPrice = prices[selectedPair];
-
-      if (!currentPrice) {
-        throw new Error("Current price not available");
-      }
-
-      if (parseFloat(total) > (walletData.cashBalance || 0)) {
-        throw new Error("Insufficient USDT balance");
-      }
-
-      await cryptoService.buyCrypto({
-        userId: walletData.userId,
-        walletId: walletData.walletId,
-        symbol: selectedPair,
-        amount: numAmount,
-      });
-
-      // Refresh wallet data
-      const updatedWallet = await cryptoService.getWalletData();
-      setWalletData(updatedWallet);
-      setAmount("");
-      setTotal("");
-    } catch (err) {
-      console.error("Buy error:", err);
-      setError(
-        err instanceof Error ? err.message : "Failed to execute buy order"
-      );
-    } finally {
-      setLoading(false);
+  const fetchWallet = async (userId: string, walletId: string) => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setError("Authentication token not found");
+      setIsFetchingWallet(false);
+      return;
     }
-  };
 
-  const handleSell = async () => {
     try {
-      setLoading(true);
-      setError(null);
+      axiosInstance.defaults.headers.common[
+        "Authorization"
+      ] = `Bearer ${token}`;
 
-      if (!amount || !total) {
-        throw new Error("Please enter amount and total");
-      }
-
-      if (!walletData?.userId) {
-        throw new Error("User data not found. Please log in again.");
-      }
-
-      // Parse and validate amount
-      const numAmount = parseFloat(amount);
-      if (isNaN(numAmount) || numAmount <= 0) {
-        throw new Error("Invalid amount. Please enter a valid number");
-      }
-
-      // Format to a reasonable number of decimal places based on the trading pair
-      const formattedAmount = Number(numAmount.toFixed(8));
-
-      const holding = walletData.holdings?.find(
-        (h) => h.symbol === selectedPair
+      // Changed to use the correct endpoint /wallet/user/{walletId}
+      const response = await axiosInstance.get<WalletData>(
+        `/wallet/user/${walletId}`
       );
 
-      if (!holding) {
-        throw new Error(`No ${selectedPair} holdings found`);
+      if (response.data) {
+        setWallet(response.data);
+        setError("");
+        console.log("Fetched wallet data:", response.data);
+      } else {
+        throw new Error("No wallet data received");
       }
-
-      // Parse holding amount and ensure it's a valid number
-      const currentHoldingAmount = parseFloat(holding.amount.toString());
-      if (isNaN(currentHoldingAmount)) {
-        throw new Error("Invalid holding amount in wallet");
-      }
-
-      if (formattedAmount > currentHoldingAmount) {
-        throw new Error(
-          `Insufficient ${selectedPair.replace(
-            "USDT",
-            ""
-          )} balance. You have: ${currentHoldingAmount}`
+    } catch (err) {
+      const apiError = err as ApiError;
+      if (apiError.response?.status === 401) {
+        setError("Session expired. Please log in again.");
+      } else if (apiError.response?.status === 404) {
+        setError("Wallet not found. Please contact support.");
+      } else {
+        setError(
+          apiError.message || "Failed to fetch wallet data. Please try again."
         );
       }
+      console.error("Wallet fetch error:", apiError);
+    } finally {
+      setIsFetchingWallet(false);
+    }
+  };
 
-      // Send the formatted amount to the service
-      await cryptoService.sellCrypto({
-        userId: walletData.userId,
-        walletId: walletData.walletId,
-        symbol: selectedPair,
-        amount: formattedAmount  // Send the properly formatted number
-      });
-
-      // Refresh wallet data
-      const updatedWallet = await cryptoService.getWalletData();
-      setWalletData(updatedWallet);
-      setAmount("");
-      setTotal("");
+  const fetchCurrentPrice = async (selectedSymbol: string): Promise<void> => {
+    try {
+      const response = await axiosInstance.get<number>(
+        `/crypto/price/${selectedSymbol}USDT`
+      );
+      setCurrentPrice(response.data);
+      setError("");
     } catch (err) {
-      console.error("Sell error:", err);
+      setError("Failed to fetch current price");
+      setCurrentPrice(null);
+    }
+  };
+
+  const handleSymbolChange = (value: string): void => {
+    setSymbol(value);
+    fetchCurrentPrice(value);
+  };
+
+  const handleTrade = async (
+    e: React.FormEvent<HTMLFormElement>
+  ): Promise<void> => {
+    e.preventDefault();
+
+    if (!user?.id || !user?.walletId) {
+      setError("User not authenticated or invalid user data.");
+      return;
+    }
+
+    if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+      setError("Please enter a valid amount");
+      return;
+    }
+
+    if (!symbol) {
+      setError("Please select a cryptocurrency");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        throw new Error("Authentication token not found");
+      }
+
+      axiosInstance.defaults.headers.common[
+        "Authorization"
+      ] = `Bearer ${token}`;
+
+      const payload: TradePayload = {
+        userId: user.id,
+        walletId: user.walletId,
+        symbol: `${symbol}USDT`,
+        amount: parseFloat(amount),
+      };
+
+      // Log the payload for debugging
+      console.log("Trade payload:", payload);
+
+      // Use the walletId in the URL path and send the payload in the body
+      const response = await axiosInstance.post(
+        `/wallet/${user.id}/${tradeType}`, // Changed to use userId in the path
+        payload
+      );
+
+      console.log("Trade response:", response.data);
+
+      if (response.data.success) {
+        await fetchWallet(user.id, user.walletId);
+        setAmount("");
+        setSymbol("");
+        setCurrentPrice(null);
+
+        if (onTradeComplete) {
+          onTradeComplete();
+        }
+      }
+    } catch (err) {
+      const apiError = err as ApiError;
+      console.error("Trade error:", apiError.response?.data || apiError);
       setError(
-        err instanceof Error ? err.message : "Failed to execute sell order"
+        apiError.response?.data?.message ||
+          apiError.message ||
+          `Failed to ${tradeType} crypto`
       );
     } finally {
       setLoading(false);
     }
   };
 
+  const estimatedTotal = currentPrice
+    ? (parseFloat(amount) * currentPrice).toFixed(2)
+    : "0.00";
 
-  const handleAmountChange = (value: string) => {
-    // Remove any non-numeric characters except decimal point
-    const sanitizedValue = value.replace(/[^\d.]/g, '');
-    
-    // Ensure only one decimal point
-    const parts = sanitizedValue.split('.');
-    const formattedValue = parts.length > 2 
-      ? `${parts[0]}.${parts.slice(1).join('')}`
-      : sanitizedValue;
-
-    // Convert to number and validate
-    const numValue = parseFloat(formattedValue);
-    if (!isNaN(numValue) || formattedValue === "") {
-      setAmount(formattedValue);
-      const currentPrice = prices[selectedPair] || 0;
-      const calculatedTotal = (parseFloat(formattedValue || "0") * currentPrice);
-      setTotal(calculatedTotal.toFixed(2));
-    }
-  };
-
-  const handleTotalChange = (value: string) => {
-    // Remove any non-numeric characters except decimal point
-    const sanitizedValue = value.replace(/[^\d.]/g, '');
-    
-    // Ensure only one decimal point
-    const parts = sanitizedValue.split('.');
-    const formattedValue = parts.length > 2 
-      ? `${parts[0]}.${parts.slice(1).join('')}`
-      : sanitizedValue;
-
-    setTotal(formattedValue);
-    const currentPrice = prices[selectedPair] || 0;
-    if (currentPrice > 0) {
-      const calculatedAmount = (parseFloat(formattedValue || "0") / currentPrice);
-      setAmount(calculatedAmount.toFixed(8));
-    }
-  };
-
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 p-4">
-      {/* Left Column - Trading Pairs */}
-      <Card className="lg:col-span-1">
-        <CardHeader>
-          <CardTitle>Trading Pairs</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            {TRADING_PAIRS.map((pair) => (
-              <div
-                key={pair}
-                onClick={() => setSelectedPair(pair)}
-                className={`flex justify-between items-center p-3 rounded cursor-pointer hover:bg-gray-100 ${
-                  selectedPair === pair ? "bg-gray-100" : ""
-                }`}
-              >
-                <span className="font-medium">{pair}</span>
-                <div className="flex flex-col items-end">
-                  <span>${prices[pair]?.toFixed(2) || "0.00"}</span>
-                  <span
-                    className={`text-sm ${
-                      (priceChanges[pair] || 0) >= 0
-                        ? "text-green-500"
-                        : "text-red-500"
-                    }`}
-                  >
-                    {(priceChanges[pair] || 0).toFixed(2)}%
-                  </span>
-                </div>
-              </div>
-            ))}
+  if (isFetchingWallet) {
+    return (
+      <Card className="w-full">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-center space-x-2">
+            <Loader2 className="w-6 h-6 animate-spin" />
+            <span>Loading wallet data...</span>
           </div>
         </CardContent>
       </Card>
+    );
+  }
 
-      {/* Middle Column - Chart and Trading */}
-      <Card className="lg:col-span-2">
+  if (!wallet) {
+    return (
+      <Card className="w-full">
         <CardHeader>
-          <div className="flex justify-between items-center">
-            <CardTitle>{selectedPair} Chart</CardTitle>
-            <div className="flex items-center space-x-2">
-              <span className="text-2xl font-bold">
-                ${prices[selectedPair]?.toFixed(2) || "0.00"}
-              </span>
-              <span
-                className={`text-sm ${
-                  (priceChanges[selectedPair] || 0) >= 0
-                    ? "text-green-500"
-                    : "text-red-500"
-                }`}
-              >
-                {(priceChanges[selectedPair] || 0).toFixed(2)}%
-              </span>
-            </div>
-          </div>
+          <CardTitle className="flex items-center gap-2">
+            <TrendingUp className="w-5 h-5" />
+            Crypto Trading
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          {/* Price Chart */}
-          <div className="h-[300px] mb-6">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={historicalData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="time" />
-                <YAxis />
-                <Tooltip />
-                <Line
-                  type="monotone"
-                  dataKey="price"
-                  stroke="#3b82f6"
-                  dot={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Trading Interface */}
-          <Tabs defaultValue="buy">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="buy">Buy</TabsTrigger>
-              <TabsTrigger value="sell">Sell</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="buy">
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm">Amount</label>
-                  <div className="relative">
-                    <Input
-                      type="number"
-                      value={amount}
-                      onChange={(e) => handleAmountChange(e.target.value)}
-                      placeholder="0.00"
-                    />
-                    <span className="absolute right-3 top-2 text-gray-500">
-                      {selectedPair.replace("USDT", "")}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm">Total</label>
-                  <div className="relative">
-                    <Input
-                      type="number"
-                      value={total}
-                      onChange={(e) => handleTotalChange(e.target.value)}
-                      placeholder="0.00"
-                    />
-                    <span className="absolute right-3 top-2 text-gray-500">
-                      USDT
-                    </span>
-                  </div>
-                </div>
-
-                <Button
-                  className="w-full bg-green-500 hover:bg-green-600"
-                  onClick={handleBuy}
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <RefreshCcw className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    "Buy"
-                  )}
-                </Button>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="sell">
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm">Amount</label>
-                  <div className="relative">
-                    <Input
-                      type="number"
-                      value={amount}
-                      onChange={(e) => handleAmountChange(e.target.value)}
-                      placeholder="0.00"
-                    />
-                    <span className="absolute right-3 top-2 text-gray-500">
-                      {selectedPair.replace("USDT", "")}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm">Total</label>
-                  <div className="relative">
-                    <Input
-                      type="number"
-                      value={total}
-                      onChange={(e) => handleTotalChange(e.target.value)}
-                      placeholder="0.00"
-                    />
-                    <span className="absolute right-3 top-2 text-gray-500">
-                      USDT
-                    </span>
-                  </div>
-                </div>
-
-                <Button
-                  className="w-full bg-red-500 hover:bg-red-600"
-                  onClick={handleSell}
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <RefreshCcw className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    "Sell"
-                  )}
-                </Button>
-              </div>
-            </TabsContent>
-          </Tabs>
-
           {error && (
-            <div className="mt-4 p-3 bg-red-100 text-red-700 rounded-lg">
-              {error}
-            </div>
+            <Alert variant="destructive" className="mb-4">
+              <AlertTriangle className="w-4 h-4" />
+              <AlertDescription>
+                {error}
+                {(error === "Session expired. Please log in again." ||
+                  error === "User not authenticated") && (
+                  <Button
+                    variant="outline"
+                    className="mt-2 w-full"
+                    onClick={() => {
+                      localStorage.clear();
+                      window.location.href = "/login";
+                    }}
+                  >
+                    Go to Login
+                  </Button>
+                )}
+              </AlertDescription>
+            </Alert>
           )}
         </CardContent>
       </Card>
-    </div>
+    );
+  }
+
+  return (
+    <Card className="w-full">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <TrendingUp className="w-5 h-5" />
+          Crypto Trading
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {error && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertTriangle className="w-4 h-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        <div className="mb-4 p-4 bg-secondary rounded">
+          <div className="flex justify-between items-center mb-2">
+            <span>Available Balance:</span>
+            <span className="font-semibold">${wallet.cashBalance}</span>
+          </div>
+        </div>
+
+        <form onSubmit={handleTrade} className="space-y-4">
+          <div className="flex gap-4">
+            <Button
+              type="button"
+              variant={tradeType === "buy" ? "default" : "outline"}
+              className="flex-1"
+              onClick={() => setTradeType("buy")}
+            >
+              Buy
+            </Button>
+            <Button
+              type="button"
+              variant={tradeType === "sell" ? "default" : "outline"}
+              className="flex-1"
+              onClick={() => setTradeType("sell")}
+            >
+              Sell
+            </Button>
+          </div>
+
+          <div className="space-y-2">
+            <Select value={symbol} onValueChange={handleSymbolChange}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select Crypto" />
+              </SelectTrigger>
+              <SelectContent>
+                {supportedSymbols.map((sym) => (
+                  <SelectItem key={sym} value={sym}>
+                    {sym}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Input
+              type="number"
+              placeholder="Amount"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              min="0"
+              step="0.00000001"
+            />
+          </div>
+
+          {currentPrice && (
+            <div className="flex justify-between items-center p-2 bg-secondary rounded">
+              <span>Current Price:</span>
+              <span className="font-semibold">${currentPrice.toFixed(2)}</span>
+            </div>
+          )}
+
+          <div className="flex justify-between items-center p-2 bg-secondary rounded">
+            <span>Estimated Total:</span>
+            <span className="font-semibold">
+              <DollarSign className="w-4 h-4 inline" />
+              {estimatedTotal}
+            </span>
+          </div>
+
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={!symbol || !amount || loading || !currentPrice}
+          >
+            {loading
+              ? "Processing..."
+              : `${tradeType.toUpperCase()} ${symbol || "Crypto"}`}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   );
 };
 
-export default CryptoTrading;
+export default Trade;

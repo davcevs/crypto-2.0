@@ -58,6 +58,16 @@ const PublicRoute = ({ children }: { children: JSX.Element }) => {
 
   return children;
 };
+const DashboardRoute = () => {
+  const user = getCurrentUser();
+  const location = useLocation();
+
+  if (!user) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  return <Dashboard user={user} />;
+};
 
 // Casino wrapper component to handle user ID injection
 const CasinoWrapper = () => {
@@ -145,7 +155,7 @@ function App() {
               path="/dashboard"
               element={
                 <ProtectedRoute>
-                  <Dashboard />
+                  <DashboardRoute />
                 </ProtectedRoute>
               }
             />

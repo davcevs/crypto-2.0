@@ -1,4 +1,5 @@
 // Types for wallet data
+// WalletInterfaces.ts
 export interface Holding {
   symbol: string;
   amount: number;
@@ -50,6 +51,10 @@ export interface CryptoHoldingsResponse {
 }
 
 export interface ApiError {
-  message: string;
-  statusCode: number;
+  response?: {
+    status: number;
+    data: any;
+    message: string;
+    statusCode: number;
+  }
 }

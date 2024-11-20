@@ -13,7 +13,7 @@ export class WalletController {
   constructor(
     private walletService: WalletService,
     private readonly cryptoHoldingsService: CryptoHoldingsService,
-  ) {}
+  ) { }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get wallet details' })
@@ -21,9 +21,9 @@ export class WalletController {
     return this.walletService.getUserWallet(id);
   }
 
-  @Get('user/:userId')
+  @Get('user/:walletId')
   // @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Get wallet by user ID' })
+  @ApiOperation({ summary: 'Get wallet by wallet ID' })
   async getWalletByUserId(@Param('walletId') userId: string) {
     return this.walletService.getWalletById(userId);
   }
@@ -33,12 +33,25 @@ export class WalletController {
   getWalletStats(@Param('walletId') id: string) {
     return this.walletService.getWalletStats(id);
   }
-
   @Post(':id/buy')
-  @ApiOperation({ summary: 'Buy crypto' })
-  async buyCrypto(@Body() buyCryptoDto: BuySellCryptoDto) {
-    await this.walletService.buyCrypto(buyCryptoDto);
-    return { success: true };
+  async buyCrypto(
+    @Param('id') userId: string,
+    @Body() buyCryptoDto: BuySellCryptoDto
+  ) {
+    try {
+      console.log('Controller received userId:', userId);
+
+      // Use the userId from the URL parameter
+      const fullDto = {
+        ...buyCryptoDto,
+        userId  // Changed from walletId to userId
+      };
+
+      return await this.walletService.buyCrypto(fullDto);
+    } catch (error) {
+      console.error('Buy Crypto Error:', error);
+      throw error;
+    }
   }
 
   @Post(':id/sell')

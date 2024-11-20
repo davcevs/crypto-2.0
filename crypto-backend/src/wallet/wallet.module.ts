@@ -19,4 +19,4 @@ import { CryptoHoldingsService } from 'src/crypto-holdings/crypto-holdings.servi
   providers: [WalletService, CryptoHoldingsService],
   exports: [WalletService],
 })
-export class WalletModule {}
+export class WalletModule { }

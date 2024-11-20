@@ -28,78 +28,82 @@ export class CryptoHoldingsService {
     price: number,
     type: 'BUY' | 'SELL',
   ): Promise<CryptoHolding> {
-    const wallet = await this.walletRepository.findOne({
-      where: { walletId },
-      relations: ['holdings'],
-    });
+    return await this.walletRepository.manager.transaction(async (transactionalEntityManager) => {
+      // Lock the wallet for update
+      const wallet = await transactionalEntityManager
+        .createQueryBuilder(Wallet, 'wallet')
+        .where('wallet.walletId = :walletId', { walletId })
+        .setLock('pessimistic_write')
+        .getOne();
 
-    if (!wallet) {
-      throw new NotFoundException(`Wallet with ID ${walletId} not found`);
-    }
+      if (!wallet) {
+        throw new NotFoundException(`Wallet with ID ${walletId} not found`);
+      }
 
-    let holding = await this.cryptoHoldingRepository.findOne({
-      where: { wallet: { walletId }, symbol },
-      relations: ['wallet'],
-    });
+      // Lock the holding for update if it exists
+      let holding = await transactionalEntityManager
+        .createQueryBuilder(CryptoHolding, 'holding')
+        .where('holding.symbol = :symbol', { symbol })
+        .andWhere('holding.wallet = :walletId', { walletId })
+        .setLock('pessimistic_write')
+        .getOne();
 
-    if (!holding) {
-      if (type === 'SELL') {
+      if (!holding && type === 'BUY') {
+        // Create new holding if buying for the first time
+        holding = this.cryptoHoldingRepository.create({
+          wallet,
+          symbol,
+          amount: 0,
+          averageBuyPrice: 0,
+        });
+      } else if (!holding && type === 'SELL') {
         throw new BadRequestException(`No ${symbol} holdings found to sell`);
       }
 
-      holding = this.cryptoHoldingRepository.create({
+      const total = amount * price;
+
+      if (type === 'BUY') {
+        // Calculate new average price and total amount
+        const oldTotal = holding.amount * holding.averageBuyPrice;
+        const newTotal = oldTotal + (amount * price);
+        const newAmount = holding.amount + amount;
+
+        holding.amount = newAmount;
+        holding.averageBuyPrice = newTotal / newAmount;
+
+        // Update wallet balance
+        wallet.cashBalance -= total;
+      } else {
+        if (holding.amount < amount) {
+          throw new BadRequestException(
+            `Insufficient ${symbol} balance. Available: ${holding.amount}`,
+          );
+        }
+        holding.amount -= amount;
+        wallet.cashBalance += total;
+      }
+
+      // Create transaction record
+      const transaction = this.transactionRepository.create({
         wallet,
+        type,
         symbol,
-        amount: 0,
-        averageBuyPrice: 0,
-      });
-    }
-
-    try {
-      await this.walletRepository.manager.transaction(async (transactionalEntityManager) => {
-        if (type === 'BUY') {
-          const totalCurrentValue = holding.amount * holding.averageBuyPrice;
-          const newValue = amount * price;
-          const totalAmount = holding.amount + amount;
-
-          holding.amount = totalAmount;
-          holding.averageBuyPrice = (totalCurrentValue + newValue) / totalAmount;
-        } else {
-          if (holding.amount < amount) {
-            throw new BadRequestException(
-              `Insufficient ${symbol} balance. Available: ${holding.amount}`,
-            );
-          }
-          holding.amount -= amount;
-        }
-
-        // Create transaction record
-        const transaction = this.transactionRepository.create({
-          wallet,
-          type,
-          symbol,
-          amount,
-          price,
-          total: amount * price,
-        });
-
-        if (holding.amount === 0) {
-          await transactionalEntityManager.remove(holding);
-          return null;
-        } else {
-          await transactionalEntityManager.save(holding);
-        }
-
-        await transactionalEntityManager.save(transaction);
+        amount,
+        price,
+        total,
       });
 
-      return holding;
-    } catch (error) {
-      console.error('Error updating holding:', error);
-      throw new BadRequestException(
-        error.message || 'Failed to update crypto holding',
-      );
-    }
+      // Save all changes
+      await transactionalEntityManager.save(wallet);
+      await transactionalEntityManager.save(transaction);
+
+      if (holding.amount === 0) {
+        await transactionalEntityManager.remove(holding);
+        return null;
+      } else {
+        return await transactionalEntityManager.save(holding);
+      }
+    });
   }
 
 
@@ -158,10 +162,12 @@ export class CryptoHoldingsService {
   }
 
   async getHoldings(walletId: string): Promise<CryptoHolding[]> {
-    const holdings = await this.cryptoHoldingRepository.find({
-      where: { wallet: { walletId } },
-      relations: ['wallet'],
-    });
+    const holdings = await this.cryptoHoldingRepository
+      .createQueryBuilder('holding')
+      .where('holding.wallet = :walletId', { walletId })
+      .orderBy('holding.symbol', 'ASC')
+      .getMany();
+
     return holdings;
   }
 
@@ -170,9 +176,11 @@ export class CryptoHoldingsService {
     symbol: string,
     amount: number,
   ): Promise<boolean> {
-    const holding = await this.cryptoHoldingRepository.findOne({
-      where: { wallet: { walletId }, symbol },
-    });
+    const holding = await this.cryptoHoldingRepository
+      .createQueryBuilder('holding')
+      .where('holding.wallet = :walletId', { walletId })
+      .andWhere('holding.symbol = :symbol', { symbol })
+      .getOne();
 
     if (!holding || holding.amount < amount) {
       throw new BadRequestException(

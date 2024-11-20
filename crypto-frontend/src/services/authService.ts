@@ -4,38 +4,46 @@ import { User } from "@/interfaces/UserInterface";
 
 const API_URL = "http://localhost:3000";
 
+interface LoginResponse {
+  access_token: string;
+  user: User;
+}
+
 // Helper function to set up authentication
 const setupAuthentication = (token: string) => {
-  // Set default authorization header for all future axios requests
   axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-  // Set token in cryptoService
   cryptoService.setAuthToken(token);
 };
 
-export const login = async (email: string, password: string) => {
+export const login = async (email: string, password: string): Promise<LoginResponse> => {
   try {
-    const response = await axios.post(`${API_URL}/auth/login`, {
+    const response = await axios.post<LoginResponse>(`${API_URL}/auth/login`, {
       email,
       password,
     });
 
-    if (response.data.access_token && response.data.user) {
-      // Store token separately
-      localStorage.setItem("token", response.data.access_token);
+    const { access_token, user } = response.data;
 
-      // Store user data
-      localStorage.setItem("user", JSON.stringify(response.data.user));
-
-      // Set up authentication with the new token
-      setupAuthentication(response.data.access_token);
-
-      // Notify that user is logged in
-      window.dispatchEvent(new Event("storage"));
-
-      return response.data;
-    } else {
+    if (!access_token || !user) {
       throw new Error("Invalid response format from server");
     }
+
+    // Validate required user fields
+    if (!user.id || !user.walletId) {
+      throw new Error("Incomplete user data received");
+    }
+
+    // Store both token and complete user data
+    localStorage.setItem("token", access_token);
+    localStorage.setItem("user", JSON.stringify(user));
+
+    // Set up authentication with the new token
+    setupAuthentication(access_token);
+
+    // Notify that user is logged in
+    window.dispatchEvent(new Event("storage"));
+
+    return response.data;
   } catch (error) {
     console.error("Login failed:", error);
     throw error;
@@ -46,20 +54,26 @@ export const register = async (
   username: string,
   email: string,
   password: string
-) => {
+): Promise<LoginResponse> => {
   try {
-    const response = await axios.post(`${API_URL}/auth/register`, {
+    const response = await axios.post<LoginResponse>(`${API_URL}/auth/register`, {
       username,
       email,
       password,
     });
 
-    // Store token and user separately
-    localStorage.setItem("token", response.data.access_token);
-    localStorage.setItem("user", JSON.stringify(response.data.user));
+    const { access_token, user } = response.data;
+
+    if (!access_token || !user || !user.id || !user.walletId) {
+      throw new Error("Invalid or incomplete response from server");
+    }
+
+    // Store both token and user data
+    localStorage.setItem("token", access_token);
+    localStorage.setItem("user", JSON.stringify(user));
 
     // Set up authentication with the new token
-    setupAuthentication(response.data.access_token);
+    setupAuthentication(access_token);
 
     // Notify that user is registered and logged in
     window.dispatchEvent(new Event("storage"));
@@ -74,9 +88,21 @@ export const register = async (
 export const getCurrentUser = (): User | null => {
   try {
     const token = localStorage.getItem("token");
-    if (!token) return null;
+    const userStr = localStorage.getItem("user");
 
-    // Decode the JWT token to get user data
+    if (!token || !userStr) {
+      return null;
+    }
+
+    // First try to get user data from localStorage
+    const storedUser = JSON.parse(userStr) as User;
+
+    // If we have complete user data in localStorage, use that
+    if (storedUser && storedUser.id && storedUser.walletId) {
+      return storedUser;
+    }
+
+    // Fallback to token decode if localStorage data is incomplete
     const base64Url = token.split(".")[1];
     const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
     const jsonPayload = decodeURIComponent(
@@ -90,29 +116,34 @@ export const getCurrentUser = (): User | null => {
 
     const decodedToken = JSON.parse(jsonPayload);
 
-    // Return user object with required ID
-    return {
-      id: decodedToken.id || decodedToken.userId || decodedToken.sub, // check which property your token uses
+    // Create user object with data from token
+    const user: User = {
+      id: decodedToken.id || decodedToken.userId || decodedToken.sub,
       email: decodedToken.email,
       username: decodedToken.username,
       walletId: decodedToken.walletId,
     };
+
+    // Validate required fields
+    if (!user.id || !user.walletId) {
+      // Clear invalid session data
+      logout();
+      return null;
+    }
+
+    return user;
   } catch (error) {
     console.error("Error getting current user:", error);
+    logout(); // Clear potentially corrupted data
     return null;
   }
 };
 
 export const logout = () => {
-  // Clear local storage
   localStorage.removeItem("user");
   localStorage.removeItem("token");
-
-  // Clear authentication headers
   delete axios.defaults.headers.common["Authorization"];
-  cryptoService.setAuthToken(""); // Clear crypto service token
-
-  // Notify components that user is logged out
+  cryptoService.setAuthToken("");
   window.dispatchEvent(new Event("storage"));
 };
 
@@ -121,3 +152,16 @@ const token = localStorage.getItem("token");
 if (token) {
   setupAuthentication(token);
 }
+
+export const getAuthHeader = () => {
+  const token = localStorage.getItem("token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
+export default {
+  login,
+  register,
+  getCurrentUser,
+  logout,
+  getAuthHeader,
+};

@@ -5,14 +5,12 @@ import { useNavigate } from "react-router-dom";
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loginError, setLoginError] = useState<string | null>(null); // Handle login error
+  const [loginError, setLoginError] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  // Check if the user is already logged in
   useEffect(() => {
     const user = getCurrentUser();
     if (user) {
-      // If user is already logged in, navigate to home or dashboard
       navigate("/markets");
     }
   }, [navigate]);
@@ -20,15 +18,14 @@ const Login = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      // Perform login and store user details
-      const user = await login(email, password);
-      localStorage.setItem("user", JSON.stringify(user));
+      // The login function already handles token and user storage
+      await login(email, password);
 
-      // Navigate to the homepage or dashboard after login
-      navigate("/");
+      // After successful login, navigate to markets
+      navigate("/markets");
     } catch (error) {
       console.error("Login failed", error);
-      setLoginError("Invalid email or password."); // Set error message on failed login
+      setLoginError("Invalid email or password.");
     }
   };
 
@@ -40,7 +37,6 @@ const Login = () => {
       >
         <h2 className="text-2xl font-semibold mb-4 text-center">Login</h2>
 
-        {/* Show error message if login fails */}
         {loginError && (
           <p className="text-red-500 mb-4 text-center">{loginError}</p>
         )}

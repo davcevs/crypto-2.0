@@ -17,11 +17,6 @@ export class BuySellCryptoDto {
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
-  walletId: string;
-
-  @ApiProperty()
-  @IsString()
-  @IsNotEmpty()
   symbol: string;
 
   @ApiProperty()
@@ -43,7 +38,7 @@ export class TransferCryptoDto extends BuySellCryptoDto {
   symbol: string;
 
   @ApiProperty()
-  @IsString()
+  @IsNumber()
   @IsPositive()
   amount: number;
 }

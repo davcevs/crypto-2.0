@@ -17,7 +17,7 @@ export class TransactionService {
     private transactionRepository: Repository<Transaction>,
     @InjectRepository(Wallet)
     private walletRepository: Repository<Wallet>,
-  ) {}
+  ) { }
 
   async createTransaction(
     createTransactionDto: CreateTransactionDto,

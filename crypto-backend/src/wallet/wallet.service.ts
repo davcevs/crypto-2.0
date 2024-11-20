@@ -89,49 +89,79 @@ export class WalletService {
   async buyCrypto(
     buyCryptoDto: BuySellCryptoDto,
   ): Promise<{ success: boolean; message?: string }> {
-    try {
-      const { walletId, symbol, amount } = buyCryptoDto;
+    const { userId, symbol, amount } = buyCryptoDto;
+    console.log('Starting buy crypto operation:', { userId, symbol, amount });
 
-      const wallet = await this.walletRepository.findOne({
-        where: { walletId },
-        relations: ['holdings'],
-      });
+    return await this.walletRepository.manager.transaction(async (transactionalEntityManager) => {
+      // 1. Get user with wallet
+      const user = await transactionalEntityManager
+        .createQueryBuilder(User, 'user')
+        .leftJoinAndSelect('user.wallet', 'wallet')
+        .where('user.id = :userId', { userId })
+        .getOne();
+
+      if (!user?.wallet) {
+        throw new NotFoundException(`No wallet found for user ${userId}`);
+      }
+
+      // 2. Lock and get the wallet
+      const wallet = await transactionalEntityManager
+        .createQueryBuilder(Wallet, 'wallet')
+        .where('wallet.walletId = :walletId', { walletId: user.wallet.walletId })
+        .setLock('pessimistic_write')
+        .getOne();
 
       if (!wallet) {
         throw new NotFoundException('Wallet not found');
       }
 
+      // 3. Get current price from Binance
       const currentPrice = await this.binanceService.getPrice(symbol);
-
       if (!currentPrice) {
         throw new BadRequestException('Unable to fetch current price');
       }
 
-      const totalCost = currentPrice * amount;
+      // 4. Calculate total cost with proper decimal handling
+      const totalCost = parseFloat((currentPrice * amount).toFixed(8));
+      const walletBalance = parseFloat(wallet.cashBalance.toString());
 
-      if (totalCost > wallet.cashBalance) {
-        throw new BadRequestException('Insufficient funds');
+      if (totalCost > walletBalance) {
+        throw new BadRequestException(
+          `Insufficient funds. Required: ${totalCost}, Available: ${walletBalance}`,
+        );
       }
 
-      // Find or create holding
-      let holding = wallet.holdings.find((h) => h.symbol === symbol);
+      // 5. Get or create holding with lock
+      let holding = await transactionalEntityManager
+        .createQueryBuilder(CryptoHolding, 'holding')
+        .where('holding.wallet = :walletId AND holding.symbol = :symbol', {
+          walletId: wallet.walletId,
+          symbol,
+        })
+        .setLock('pessimistic_write')
+        .getOne();
+
       if (!holding) {
+        // Create new holding
         holding = this.holdingRepository.create({
           symbol,
-          amount: 0,
-          averageBuyPrice: 0,
+          amount: amount,
+          averageBuyPrice: currentPrice,
           wallet,
         });
-        wallet.holdings.push(holding); // Add to wallet's holdings array
+      } else {
+        // Update existing holding with proper decimal handling
+        const existingAmount = parseFloat(holding.amount.toString());
+        const existingPrice = parseFloat(holding.averageBuyPrice.toString());
+
+        const totalValue = (existingAmount * existingPrice) + (amount * currentPrice);
+        const newTotalAmount = existingAmount + amount;
+
+        holding.amount = parseFloat(newTotalAmount.toFixed(8));
+        holding.averageBuyPrice = parseFloat((totalValue / newTotalAmount).toFixed(8));
       }
 
-      // Update holding
-      const totalValue = holding.amount * holding.averageBuyPrice + amount * currentPrice;
-      const newTotalAmount = holding.amount + amount;
-      holding.averageBuyPrice = totalValue / newTotalAmount;
-      holding.amount = newTotalAmount;
-
-      // Create transaction record
+      // 6. Create transaction record
       const transaction = this.transactionRepository.create({
         wallet,
         type: 'BUY',
@@ -141,26 +171,32 @@ export class WalletService {
         total: totalCost,
       });
 
-      // Update wallet balance
-      wallet.cashBalance -= totalCost;
+      // 7. Update wallet balance with proper decimal handling
+      wallet.cashBalance = parseFloat((walletBalance - totalCost).toFixed(8));
 
-      // Save everything in a transaction
-      await this.walletRepository.manager.transaction(async (transactionalEntityManager) => {
-        await transactionalEntityManager.save(holding);
-        await transactionalEntityManager.save(wallet);
-        await transactionalEntityManager.save(transaction);
-      });
+      // 8. Save everything
+      try {
+        // Save the holding first
+        const savedHolding = await transactionalEntityManager.save(CryptoHolding, holding);
+        console.log('Saved holding:', savedHolding);
 
-      return { success: true };
-    } catch (error) {
-      console.error('Buy crypto error:', error);
-      if (error instanceof BadRequestException || error instanceof NotFoundException) {
-        throw error;
+        // Then save wallet and transaction
+        await transactionalEntityManager.save(Wallet, wallet);
+        await transactionalEntityManager.save(Transaction, transaction);
+
+        console.log('Buy operation completed successfully', {
+          symbol,
+          amount,
+          newBalance: wallet.cashBalance,
+          newHoldingAmount: savedHolding.amount,
+        });
+
+        return { success: true };
+      } catch (error) {
+        console.error('Error during buy operation:', error);
+        throw new BadRequestException(`Failed to complete buy operation: ${error.message}`);
       }
-      throw new BadRequestException(
-        'Unable to process your trade at this time. Please try again later.',
-      );
-    }
+    });
   }
 
   async sellCrypto(
