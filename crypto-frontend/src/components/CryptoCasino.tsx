@@ -1,16 +1,27 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { UserCircle2, History, Wallet, TrendingUp } from "lucide-react";
-import axios from "axios";
+import { UserCircle2, History, Wallet } from "lucide-react";
 import GameCard from "./GameCard";
 import SlotMachine from "./SlotMachine";
 import Roulette from "./Roulette";
 import Blackjack from "./Blackjack";
-import { cryptoService } from "../services/cryptoService";
 import { useNavigate } from "react-router-dom";
+import axiosInstance from "../common/axios-instance";
+import {
+  WalletData,
+  WalletStats,
+  CryptoHolding,
+  ApiError,
+  CryptoHoldingsResponse,
+} from "@/interfaces/WalletInterfaces";
+import { User } from "@/interfaces/UserInterface";
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+interface WalletPanelProps {
+  wallet: WalletData;
+  stats: WalletStats;
+  onClose: () => void;
+  cryptoBalances: CryptoHolding[];
+}
 
 // Define the available games
 const games = [
@@ -37,7 +48,12 @@ const games = [
   },
 ];
 
-const WalletPanel = ({ wallet, stats, onClose, cryptoBalances }) => {
+const WalletPanel: React.FC<WalletPanelProps> = ({
+  wallet,
+  stats,
+  onClose,
+  cryptoBalances,
+}) => {
   return (
     <motion.div
       initial={{ x: "100%" }}
@@ -102,19 +118,21 @@ const WalletPanel = ({ wallet, stats, onClose, cryptoBalances }) => {
   );
 };
 
-const CryptoCasino = () => {
-  const [selectedGame, setSelectedGame] = useState(null);
-  const [wallet, setWallet] = useState(null);
-  const [walletStats, setWalletStats] = useState(null);
+const CryptoCasino: React.FC = () => {
+  const [selectedGame, setSelectedGame] = useState<(typeof games)[0] | null>(
+    null
+  );
+  const [wallet, setWallet] = useState<WalletData | null>(null);
+  const [walletStats, setWalletStats] = useState<WalletStats | null>(null);
   const [showWallet, setShowWallet] = useState(false);
   const [showReward, setShowReward] = useState(false);
   const [rewardAmount, setRewardAmount] = useState(0);
-  const [error, setError] = useState(null);
-  const [cryptoBalances, setCryptoBalances] = useState([]);
-  const [userId, setUserId] = useState(null);
+  const [error, setError] = useState<string | null>(null);
+  const [cryptoBalances, setCryptoBalances] = useState<CryptoHolding[]>([]);
+  const [userId, setUserId] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  const fetchUserData = useCallback(async () => {
+  const fetchUserData = useCallback(async (): Promise<string | null> => {
     try {
       const urlParams = new URLSearchParams(window.location.search);
       const userIdFromUrl = urlParams.get("userId");
@@ -123,8 +141,8 @@ const CryptoCasino = () => {
         throw new Error("No user ID provided in URL");
       }
 
-      const response = await axios.get(
-        `${API_BASE_URL}/auth/user/${userIdFromUrl}`
+      const response = await axiosInstance.get<User>(
+        `/auth/user/${userIdFromUrl}`
       );
 
       if (!response.data) {
@@ -134,61 +152,68 @@ const CryptoCasino = () => {
       setUserId(response.data.id);
       return response.data.id;
     } catch (err) {
-      setError(err.message);
+      const apiError = err as ApiError;
+      setError(apiError.response?.message || "An error occurred");
       console.error("Error fetching user data:", err);
-      // Redirect to login or home page if there's an error
       navigate("/login");
       return null;
     }
   }, [navigate]);
 
-  const fetchWalletData = useCallback(async (uid) => {
+  const fetchCryptoPrice = async (symbol: string): Promise<number> => {
     try {
-      // Get wallet using user ID
-      const walletResponse = await axios.get(
-        `${API_BASE_URL}/wallet/user/${uid}`
+      const response = await axiosInstance.get<{ price: number }>(
+        `/crypto/price/${symbol}`
       );
-      const walletId = walletResponse.data.walletId;
+      return response.data.price;
+    } catch (error) {
+      console.error(`Failed to fetch price for ${symbol}:`, error);
+      return 0;
+    }
+  };
+
+  const fetchWalletData = useCallback(async (walletId: string) => {
+    try {
+      // Get wallet details using wallet ID
+      const walletResponse = await axiosInstance.get<{ walletId: string }>(
+        `/wallet/user/${walletId}`
+      );
+      const wallet = walletResponse.data;
 
       // Get wallet details
-      const detailsResponse = await axios.get(
-        `${API_BASE_URL}/wallet/${walletId}`
-      );
-      const statsResponse = await axios.get(
-        `${API_BASE_URL}/wallet/${walletId}/stats`
-      );
+      const [detailsResponse, statsResponse, holdingsResponse] =
+        await Promise.all([
+          axiosInstance.get<WalletData>(`/wallet/${wallet.walletId}`),
+          axiosInstance.get<WalletStats>(`/wallet/${wallet.walletId}/stats`),
+          axiosInstance.get<CryptoHoldingsResponse>(
+            `/crypto-holdings/${wallet.walletId}/holdings`
+          ),
+        ]);
 
       setWallet(detailsResponse.data);
       setWalletStats(statsResponse.data);
 
       // Update crypto balances with current prices
       const balancesWithPrices = await Promise.all(
-        detailsResponse.data.holdings.map(async (holding) => {
-          // Check if the symbol already ends with USDT
+        holdingsResponse.data.holdings.map(async (holding) => {
           const symbol = holding.symbol.endsWith("USDT")
             ? holding.symbol
             : `${holding.symbol}USDT`;
 
-          try {
-            const price = await cryptoService.getPrice(symbol);
-            return {
-              ...holding,
-              price,
-            };
-          } catch (error) {
-            console.error(`Failed to fetch price for ${symbol}:`, error);
-            return {
-              ...holding,
-              price: 0, // Use a fallback price or the last known price
-            };
-          }
+          const price = await fetchCryptoPrice(symbol);
+          return {
+            ...holding,
+            currentPrice: price,
+            totalValue: holding.amount * price,
+          };
         })
       );
 
       setCryptoBalances(balancesWithPrices);
       setError(null);
     } catch (err) {
-      setError(err.message);
+      const apiError = err as ApiError;
+      setError(apiError.response?.message || "An error occurred");
       console.error("Error fetching wallet data:", err);
     }
   }, []);
@@ -203,32 +228,43 @@ const CryptoCasino = () => {
 
     initializeData();
 
-    // Set up crypto price updates
-    const unsubscribe = cryptoService.subscribeToPriceUpdates((prices) => {
+    // Set up periodic price updates
+    const priceUpdateInterval = setInterval(async () => {
       if (cryptoBalances.length > 0) {
-        const updatedBalances = cryptoBalances.map((balance) => ({
-          ...balance,
-          price: prices[`${balance.symbol}USDT`] || balance.price,
-        }));
+        const updatedBalances = await Promise.all(
+          cryptoBalances.map(async (balance) => {
+            const symbol = balance.symbol.endsWith("USDT")
+              ? balance.symbol
+              : `${balance.symbol}USDT`;
+            const price = await fetchCryptoPrice(symbol);
+            return {
+              ...balance,
+              currentPrice: price,
+              totalValue: balance.amount * price,
+            };
+          })
+        );
         setCryptoBalances(updatedBalances);
       }
-    });
+    }, 30000);
 
     return () => {
-      unsubscribe();
-      cryptoService.cleanup();
+      clearInterval(priceUpdateInterval);
     };
   }, [fetchUserData, fetchWalletData]);
 
-  const updateBalance = async (amount) => {
+  const updateBalance = async (amount: number) => {
     try {
-      await fetchWalletData(userId);
-      if (amount > 0) {
-        setRewardAmount(amount);
-        setShowReward(true);
+      if (userId) {
+        await fetchWalletData(userId);
+        if (amount > 0) {
+          setRewardAmount(amount);
+          setShowReward(true);
+        }
       }
     } catch (err) {
-      setError(err.message);
+      const apiError = err as ApiError;
+      setError(apiError.response?.message || "An error occurred");
     }
   };
 
