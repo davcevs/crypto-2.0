@@ -18,6 +18,12 @@ export interface WalletBalance {
   free: number;
   locked: number;
 }
+export interface TradePayload {
+  userId: string;
+  walletId: string;
+  symbol: string;
+  amount: number;
+}
 
 export interface WalletData {
   id: string;
@@ -53,8 +59,9 @@ export interface CryptoHoldingsResponse {
 export interface ApiError {
   response?: {
     status: number;
-    data: any;
-    message: string;
-    statusCode: number;
-  }
+    data?: {
+      message: string;
+    };
+  };
+  message?: string;
 }

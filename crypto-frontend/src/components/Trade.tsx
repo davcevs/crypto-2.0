@@ -1,26 +1,25 @@
 import React, { useState, useEffect } from "react";
-import { DollarSign, TrendingUp, AlertTriangle, Loader2 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { User } from "@/interfaces/UserInterface";
-import { ApiError, WalletData } from "@/interfaces/WalletInterfaces";
-import axiosInstance from "./../common/axios-instance";
-
-interface TradePayload {
-  userId: string;
-  walletId: string;
-  symbol: string;
-  amount: number;
-}
+  TrendingUp,
+  AlertTriangle,
+  Loader2,
+  CreditCard,
+  RefreshCw,
+} from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import axiosInstance from "@/common/axios-instance";
+import { useWallet } from "../hooks/useWallet";
+import { useTrade } from "../hooks/useTrade";
+import { TradeForm } from "../components/TradeForm";
+import { User } from "./../interfaces/UserInterface";
 
 interface CryptoTradingProps {
   onTradeComplete?: () => void;
@@ -28,16 +27,25 @@ interface CryptoTradingProps {
 
 const Trade: React.FC<CryptoTradingProps> = ({ onTradeComplete }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [wallet, setWallet] = useState<WalletData | null>(null);
-  const [tradeType, setTradeType] = useState<"buy" | "sell">("buy");
-  const [symbol, setSymbol] = useState<string>("");
-  const [amount, setAmount] = useState<string>("");
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string>("");
-  const [isFetchingWallet, setIsFetchingWallet] = useState<boolean>(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const supportedSymbols = ["BTC", "ETH", "BNB", "SOL", "DOT"];
+  const {
+    wallet,
+    error: walletError,
+    isFetchingWallet,
+    fetchWallet,
+  } = useWallet(user);
+  const {
+    executeTrade,
+    loading,
+    error: tradeError,
+  } = useTrade(user, () => {
+    if (user) {
+      handleRefreshWallet();
+      onTradeComplete?.();
+    }
+  });
 
   useEffect(() => {
     const userData = localStorage.getItem("user");
@@ -45,171 +53,55 @@ const Trade: React.FC<CryptoTradingProps> = ({ onTradeComplete }) => {
       try {
         const parsedUser = JSON.parse(userData);
         setUser(parsedUser);
-
-        // Log the user data to verify
-        console.log("Loaded user data:", parsedUser);
-
-        // Immediately fetch wallet if we have user data
-        if (parsedUser?.walletId) {
-          fetchWallet(parsedUser.id, parsedUser.walletId);
-        } else {
-          setError("No wallet ID found in user data");
-          setIsFetchingWallet(false);
-        }
       } catch (err) {
-        setError("Invalid user data");
         console.error("Failed to parse user data:", err);
-        setIsFetchingWallet(false);
       }
-    } else {
-      setError("User data not found");
-      setIsFetchingWallet(false);
     }
   }, []);
 
-  const fetchWallet = async (userId: string, walletId: string) => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      setError("Authentication token not found");
-      setIsFetchingWallet(false);
-      return;
-    }
-
-    try {
-      axiosInstance.defaults.headers.common[
-        "Authorization"
-      ] = `Bearer ${token}`;
-
-      // Changed to use the correct endpoint /wallet/user/{walletId}
-      const response = await axiosInstance.get<WalletData>(
-        `/wallet/user/${walletId}`
-      );
-
-      if (response.data) {
-        setWallet(response.data);
-        setError("");
-        console.log("Fetched wallet data:", response.data);
-      } else {
-        throw new Error("No wallet data received");
-      }
-    } catch (err) {
-      const apiError = err as ApiError;
-      if (apiError.response?.status === 401) {
-        setError("Session expired. Please log in again.");
-      } else if (apiError.response?.status === 404) {
-        setError("Wallet not found. Please contact support.");
-      } else {
-        setError(
-          apiError.message || "Failed to fetch wallet data. Please try again."
-        );
-      }
-      console.error("Wallet fetch error:", apiError);
-    } finally {
-      setIsFetchingWallet(false);
+  const handleRefreshWallet = async () => {
+    if (user) {
+      setIsRefreshing(true);
+      await fetchWallet(user.id, user.walletId);
+      setIsRefreshing(false);
     }
   };
 
-  const fetchCurrentPrice = async (selectedSymbol: string): Promise<void> => {
+  const fetchCurrentPrice = async (symbol: string): Promise<void> => {
     try {
       const response = await axiosInstance.get<number>(
-        `/crypto/price/${selectedSymbol}USDT`
+        `/crypto/price/${symbol}USDT`
       );
       setCurrentPrice(response.data);
-      setError("");
     } catch (err) {
-      setError("Failed to fetch current price");
+      setCurrentPrice(null);
+      console.error(`Failed to fetch price for ${symbol}`, err);
+    }
+  };
+
+  const handleTrade = async (
+    tradeType: "buy" | "sell",
+    symbol: string,
+    amount: string
+  ) => {
+    const success = await executeTrade(tradeType, symbol, amount);
+    if (success) {
       setCurrentPrice(null);
     }
   };
 
-  const handleSymbolChange = (value: string): void => {
-    setSymbol(value);
-    fetchCurrentPrice(value);
+  const handleSymbolChange = (symbol: string) => {
+    fetchCurrentPrice(symbol);
   };
 
-  const handleTrade = async (
-    e: React.FormEvent<HTMLFormElement>
-  ): Promise<void> => {
-    e.preventDefault();
-
-    if (!user?.id || !user?.walletId) {
-      setError("User not authenticated or invalid user data.");
-      return;
-    }
-
-    if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
-      setError("Please enter a valid amount");
-      return;
-    }
-
-    if (!symbol) {
-      setError("Please select a cryptocurrency");
-      return;
-    }
-
-    setLoading(true);
-    setError("");
-
-    try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        throw new Error("Authentication token not found");
-      }
-
-      axiosInstance.defaults.headers.common[
-        "Authorization"
-      ] = `Bearer ${token}`;
-
-      const payload: TradePayload = {
-        userId: user.id,
-        walletId: user.walletId,
-        symbol: `${symbol}USDT`,
-        amount: parseFloat(amount),
-      };
-
-      // Log the payload for debugging
-      console.log("Trade payload:", payload);
-
-      // Use the walletId in the URL path and send the payload in the body
-      const response = await axiosInstance.post(
-        `/wallet/${user.id}/${tradeType}`, // Changed to use userId in the path
-        payload
-      );
-
-      console.log("Trade response:", response.data);
-
-      if (response.data.success) {
-        await fetchWallet(user.id, user.walletId);
-        setAmount("");
-        setSymbol("");
-        setCurrentPrice(null);
-
-        if (onTradeComplete) {
-          onTradeComplete();
-        }
-      }
-    } catch (err) {
-      const apiError = err as ApiError;
-      console.error("Trade error:", apiError.response?.data || apiError);
-      setError(
-        apiError.response?.data?.message ||
-          apiError.message ||
-          `Failed to ${tradeType} crypto`
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const estimatedTotal = currentPrice
-    ? (parseFloat(amount) * currentPrice).toFixed(2)
-    : "0.00";
+  // Safe balance extraction
+  const cashBalance = wallet?.balance ?? wallet?.cashBalance ?? 0;
 
   if (isFetchingWallet) {
     return (
-      <Card className="w-full">
+      <Card className="w-full bg-gradient-to-br from-white to-gray-100 dark:from-gray-900 dark:to-gray-800 shadow-xl">
         <CardContent className="p-6">
-          <div className="flex items-center justify-center space-x-2">
+          <div className="flex items-center justify-center space-x-2 text-primary">
             <Loader2 className="w-6 h-6 animate-spin" />
             <span>Loading wallet data...</span>
           </div>
@@ -218,11 +110,13 @@ const Trade: React.FC<CryptoTradingProps> = ({ onTradeComplete }) => {
     );
   }
 
+  const error = walletError || tradeError;
+
   if (!wallet) {
     return (
-      <Card className="w-full">
+      <Card className="w-full bg-gradient-to-br from-white to-gray-100 dark:from-gray-900 dark:to-gray-800 shadow-xl">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2 text-primary">
             <TrendingUp className="w-5 h-5" />
             Crypto Trading
           </CardTitle>
@@ -255,14 +149,37 @@ const Trade: React.FC<CryptoTradingProps> = ({ onTradeComplete }) => {
   }
 
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <TrendingUp className="w-5 h-5" />
-          Crypto Trading
+    <Card className="w-full bg-gradient-to-br from-white to-gray-100 dark:from-gray-900 dark:to-gray-800 shadow-xl">
+      <CardHeader className="border-b border-gray-200 dark:border-gray-700">
+        <CardTitle className="flex items-center justify-between text-primary">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="w-5 h-5" />
+            Crypto Trading
+          </div>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleRefreshWallet}
+                  disabled={isRefreshing}
+                >
+                  {isRefreshing ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Refresh Wallet</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-4">
         {error && (
           <Alert variant="destructive" className="mb-4">
             <AlertTriangle className="w-4 h-4" />
@@ -270,84 +187,22 @@ const Trade: React.FC<CryptoTradingProps> = ({ onTradeComplete }) => {
           </Alert>
         )}
 
-        <div className="mb-4 p-4 bg-secondary rounded">
-          <div className="flex justify-between items-center mb-2">
-            <span>Available Balance:</span>
-            <span className="font-semibold">${wallet.cashBalance}</span>
+        <div className="bg-secondary/50 rounded-lg p-4 flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <CreditCard className="w-5 h-5 text-primary" />
+            <span className="text-sm font-medium">Available Balance:</span>
           </div>
+          <span className="text-lg font-bold text-primary">
+            ${Number(cashBalance).toFixed(2)}
+          </span>
         </div>
 
-        <form onSubmit={handleTrade} className="space-y-4">
-          <div className="flex gap-4">
-            <Button
-              type="button"
-              variant={tradeType === "buy" ? "default" : "outline"}
-              className="flex-1"
-              onClick={() => setTradeType("buy")}
-            >
-              Buy
-            </Button>
-            <Button
-              type="button"
-              variant={tradeType === "sell" ? "default" : "outline"}
-              className="flex-1"
-              onClick={() => setTradeType("sell")}
-            >
-              Sell
-            </Button>
-          </div>
-
-          <div className="space-y-2">
-            <Select value={symbol} onValueChange={handleSymbolChange}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select Crypto" />
-              </SelectTrigger>
-              <SelectContent>
-                {supportedSymbols.map((sym) => (
-                  <SelectItem key={sym} value={sym}>
-                    {sym}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Input
-              type="number"
-              placeholder="Amount"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              min="0"
-              step="0.00000001"
-            />
-          </div>
-
-          {currentPrice && (
-            <div className="flex justify-between items-center p-2 bg-secondary rounded">
-              <span>Current Price:</span>
-              <span className="font-semibold">${currentPrice.toFixed(2)}</span>
-            </div>
-          )}
-
-          <div className="flex justify-between items-center p-2 bg-secondary rounded">
-            <span>Estimated Total:</span>
-            <span className="font-semibold">
-              <DollarSign className="w-4 h-4 inline" />
-              {estimatedTotal}
-            </span>
-          </div>
-
-          <Button
-            type="submit"
-            className="w-full"
-            disabled={!symbol || !amount || loading || !currentPrice}
-          >
-            {loading
-              ? "Processing..."
-              : `${tradeType.toUpperCase()} ${symbol || "Crypto"}`}
-          </Button>
-        </form>
+        <TradeForm
+          onSubmit={handleTrade}
+          loading={loading}
+          currentPrice={currentPrice}
+          onSymbolChange={handleSymbolChange}
+        />
       </CardContent>
     </Card>
   );
