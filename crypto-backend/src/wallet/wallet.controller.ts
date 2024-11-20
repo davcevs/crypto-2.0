@@ -67,17 +67,35 @@ export class WalletController {
     );
   }
 
-  @Post(':id/transfer')
-  @ApiOperation({ summary: 'Transfer crypto to another wallet' })
-  transferCrypto(
-    @Param('id') id: string,
-    @Body() transferDto: TransferCryptoDto,
+  @Post(':walletId/transfer')
+  @ApiOperation({ summary: 'Transfer crypto to another user' })
+  async transferCrypto(
+    @Param('walletId') fromWalletId: string,
+    @Body() transferDto: {
+      recipient: string; // username or email
+      symbol: string;
+      amount: number;
+    }
   ) {
-    return this.walletService.transferCrypto(
-      id,
-      transferDto.toWalletId,
-      transferDto.symbol,
-      transferDto.amount,
-    );
+    try {
+      console.log('Transfer Request:', {
+        fromWalletId,
+        recipient: transferDto.recipient,
+        symbol: transferDto.symbol,
+        amount: transferDto.amount
+      });
+
+      const result = await this.walletService.transferCrypto(
+        fromWalletId,
+        transferDto.recipient,
+        transferDto.symbol,
+        transferDto.amount
+      );
+
+      return result;
+    } catch (error) {
+      console.error('Transfer Controller Error:', error);
+      throw error;
+    }
   }
 }

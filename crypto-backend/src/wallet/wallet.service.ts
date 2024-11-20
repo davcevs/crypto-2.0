@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import { Wallet } from '../entities/wallet.entity';
 import { CryptoHolding } from '../entities/crypto-holding.entity';
 import { BinanceService } from '../binance/binance.service';
@@ -27,6 +27,7 @@ export class WalletService {
     private userRepository: Repository<User>,
     @InjectRepository(CryptoHolding)
     private readonly cryptoHoldingsService: CryptoHoldingsService,
+    private dataSource: DataSource,
   ) { }
 
   async createWallet(userId: string): Promise<Wallet> {
@@ -297,55 +298,131 @@ export class WalletService {
     console.log('sellCrypto method completed successfully');
   }
 
-
-
   async transferCrypto(
     fromWalletId: string,
-    toWalletId: string,
+    recipient: string,
     symbol: string,
-    amount: number,
-  ): Promise<void> {
-    const [fromWallet, toWallet] = await Promise.all([
-      this.walletRepository.findOne({
+    amount: number
+  ) {
+    // Start a transaction using DataSource
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // Find sender's wallet with user relation
+      const fromWallet = await this.walletRepository.findOne({
         where: { walletId: fromWalletId },
-        relations: ['holdings'],
-      }),
-      this.walletRepository.findOne({
-        where: { walletId: toWalletId },
-        relations: ['holdings'],
-      }),
-    ]);
-
-    if (!fromWallet || !toWallet) {
-      throw new NotFoundException('Wallet not found');
-    }
-
-    const fromHolding = fromWallet.holdings.find((h) => h.symbol === symbol);
-    if (!fromHolding || fromHolding.amount < amount) {
-      throw new BadRequestException('Insufficient crypto balance');
-    }
-
-    let toHolding = toWallet.holdings.find((h) => h.symbol === symbol);
-    if (!toHolding) {
-      toHolding = this.holdingRepository.create({
-        symbol,
-        amount: 0,
-        averageBuyPrice: fromHolding.averageBuyPrice,
-        wallet: toWallet,
+        relations: ['holdings', 'user']
       });
-    }
 
-    // Update holdings
-    fromHolding.amount -= amount;
-    toHolding.amount += amount;
+      if (!fromWallet) {
+        throw new NotFoundException('Sender wallet not found');
+      }
 
-    if (fromHolding.amount === 0) {
-      await this.holdingRepository.remove(fromHolding);
-    } else {
-      await this.holdingRepository.save(fromHolding);
+      // Find recipient by username or email
+      const recipientUser = await this.userRepository.findOne({
+        where: [
+          { username: recipient.trim() },
+          { email: recipient.trim() }
+        ],
+        relations: ['wallet']
+      });
+
+      if (!recipientUser || !recipientUser.wallet) {
+        throw new NotFoundException('Recipient user not found');
+      }
+
+      // Prevent self-transfer
+      if (fromWallet.user.id === recipientUser.id) {
+        throw new BadRequestException('Cannot transfer to yourself');
+      }
+
+      // Find sender's holding
+      const fromHolding = await this.holdingRepository.findOne({
+        where: {
+          wallet: fromWallet,
+          symbol: symbol.toUpperCase()
+        }
+      });
+
+      if (!fromHolding) {
+        throw new BadRequestException(`You do not hold any ${symbol}`);
+      }
+
+      // Validate transfer amount
+      const parsedAmount = Number(amount);
+      if (isNaN(parsedAmount) || parsedAmount <= 0) {
+        throw new BadRequestException('Invalid transfer amount');
+      }
+
+      if (fromHolding.amount < parsedAmount) {
+        throw new BadRequestException(`Insufficient ${symbol} balance`);
+      }
+
+      // Find or create recipient's holding
+      let toHolding = await this.holdingRepository.findOne({
+        where: {
+          wallet: recipientUser.wallet,
+          symbol: symbol.toUpperCase()
+        }
+      });
+
+      if (!toHolding) {
+        toHolding = this.holdingRepository.create({
+          symbol: symbol.toUpperCase(),
+          amount: 0,
+          wallet: recipientUser.wallet,
+          averageBuyPrice: fromHolding.averageBuyPrice
+        });
+      }
+
+      // Precise decimal handling
+      fromHolding.amount = parseFloat((fromHolding.amount - parsedAmount).toFixed(8));
+      toHolding.amount = parseFloat((toHolding.amount + parsedAmount).toFixed(8));
+
+      // Fetch current market price for transaction record
+      const currentPrice = await this.binanceService.getPrice(symbol);
+
+      // Create transaction record
+      const transaction = this.transactionRepository.create({
+        wallet: fromWallet,
+        toWallet: recipientUser.wallet,
+        type: 'TRANSFER',
+        symbol: symbol.toUpperCase(),
+        amount: parsedAmount,
+        price: currentPrice,
+        total: parsedAmount * currentPrice,
+        description: `Transfer to ${recipientUser.username || recipientUser.email}`
+      });
+
+      // Save holdings and transaction
+      await this.holdingRepository.save([fromHolding, toHolding]);
+      await this.transactionRepository.save(transaction);
+
+      // Commit transaction
+      await queryRunner.commitTransaction();
+
+      return {
+        success: true,
+        message: `Transferred ${parsedAmount} ${symbol} to ${recipientUser.username || recipientUser.email}`
+      };
+    } catch (error) {
+      // Rollback transaction in case of error
+      await queryRunner.rollbackTransaction();
+
+      // Log the full error for debugging
+      console.error('Transfer Crypto Error:', error);
+
+      throw new BadRequestException(
+        error.message || 'Transfer failed. Please try again.'
+      );
+    } finally {
+      // Release the query runner
+      await queryRunner.release();
     }
-    await this.holdingRepository.save(toHolding);
   }
+
 
   async getWalletStats(walletId: string): Promise<{
     totalValue: number;
@@ -403,3 +480,5 @@ export class WalletService {
     };
   }
 }
+
+

@@ -1,45 +1,35 @@
-// transaction.entity.ts
-import { ApiProperty } from '@nestjs/swagger';
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  ManyToOne,
-  CreateDateColumn,
-} from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
 import { Wallet } from './wallet.entity';
 
 @Entity()
 export class Transaction {
-  @ApiProperty()
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @ManyToOne(() => Wallet, (wallet) => wallet.transactions)
+  @ManyToOne(() => Wallet, wallet => wallet.transactions)
   wallet: Wallet;
 
-  @ApiProperty()
-  @Column()
+  @Column({ type: 'enum', enum: ['BUY', 'SELL', 'TRANSFER'] })
   type: string;
 
-  @ApiProperty()
-  @Column()
+  @Column({ type: 'varchar' })
   symbol: string;
 
-  @ApiProperty()
   @Column({ type: 'decimal', precision: 20, scale: 8 })
   amount: number;
 
-  @ApiProperty()
-  @Column({ type: 'decimal', precision: 20, scale: 8 })
+  @Column({ type: 'decimal', precision: 20, scale: 8, nullable: true })
   price: number;
 
-  @ApiProperty()
   @Column({ type: 'decimal', precision: 20, scale: 8 })
   total: number;
 
-  @ApiProperty()
-  @CreateDateColumn()
+  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;
-}
 
+  @Column({ type: 'varchar', nullable: true })
+  description: string;
+
+  @ManyToOne(() => Wallet, { nullable: true })
+  toWallet: Wallet;
+}
