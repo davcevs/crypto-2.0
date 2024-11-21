@@ -98,18 +98,18 @@ function App() {
   const location = useLocation();
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#181818] text-white">
-      <header>
+    <div className="flex flex-col min-h-screen bg-white text-gray-900">
+      <header className="bg-white shadow-sm">
         <Navbar />
       </header>
-      <main className="flex-grow w-full max-w-[100vh] mx-auto mt-8">
+      <main className="flex-grow w-full max-w-full mx-auto">
         <AnimatePresence mode="wait">
           <Routes location={location} key={location.pathname}>
             <Route
               path="/"
               element={
                 <PublicRoute>
-                  <div className="min-h-screen text-black">
+                  <div className="min-h-screen">
                     <Home />
                   </div>
                 </PublicRoute>
@@ -119,7 +119,7 @@ function App() {
               path="/login"
               element={
                 <PublicRoute>
-                  <div className="min-h-screen text-black">
+                  <div className="min-h-screen">
                     <Login />
                   </div>
                 </PublicRoute>
@@ -129,7 +129,7 @@ function App() {
               path="/register"
               element={
                 <PublicRoute>
-                  <div className="min-h-screen text-black">
+                  <div className="min-h-screen">
                     <Register />
                   </div>
                 </PublicRoute>
@@ -139,7 +139,9 @@ function App() {
               path="/markets"
               element={
                 <ProtectedRoute>
-                  <Markets />
+                  <div className="w-[85%] mx-auto">
+                    <Markets />
+                  </div>
                 </ProtectedRoute>
               }
             />
@@ -193,9 +195,6 @@ function App() {
           </Routes>
         </AnimatePresence>
       </main>
-      <footer>
-        <Footer />
-      </footer>
     </div>
   );
 }

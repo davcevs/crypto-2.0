@@ -10,7 +10,6 @@ import {
 } from "@/interfaces/WalletInterfaces";
 
 import { PortfolioCards } from "./PortfolioCards";
-
 import { PriceChart } from "./PriceChart";
 import { RecentTransactions } from "./RecentTransactions";
 import { DashboardState } from "types/dashboard.types";
@@ -42,7 +41,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     if (!user?.walletId) return;
 
     try {
-      // Only set loading to true on initial load
       if (!state.wallet) {
         setState((prev) => ({ ...prev, isLoading: true }));
       }
@@ -58,7 +56,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           axiosInstance.get(`/transactions/wallet/${user.walletId}`),
         ]);
 
-      // Fetch market data for each holding
       const marketPromises = holdingsRes.data.holdings.map(async (holding) => {
         const [price24h, historical] = await Promise.all([
           axiosInstance.get(`/crypto/24hr/${holding.symbol}`),
@@ -93,7 +90,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         isLoading: false,
       }));
 
-      // Set first crypto as selected if not already set
       if (!selectedCrypto && holdingsRes.data.holdings.length > 0) {
         setSelectedCrypto(holdingsRes.data.holdings[0].symbol);
       }
@@ -127,19 +123,17 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
 
   if (state.isLoading) {
     return (
-      <div className="min-h-screen bg-[#181818] text-white p-6">
-        <div className="flex items-center justify-center space-x-2">
-          <RefreshCw className="w-6 h-6 animate-spin text-blue-500" />
-          <span>Loading dashboard...</span>
-        </div>
+      <div className="min-h-screen bg-gray-900 text-white p-8 flex items-center justify-center space-x-2">
+        <RefreshCw className="w-6 h-6 animate-spin text-yellow-500" />
+        <span>Loading dashboard...</span>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#181818] text-white p-6 space-y-6">
+    <div className="min-h-screen bg-[#1E2329] text-white p-8 space-y-10">
       {state.error && (
-        <Alert variant="destructive">
+        <Alert variant="destructive" className="mb-6 bg-red-800 text-red-200">
           <AlertDescription>{state.error}</AlertDescription>
         </Alert>
       )}
@@ -149,6 +143,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         walletStats={state.walletStats}
         transactions={state.transactions}
       />
+
       <TransferCryptoModal
         isOpen={isTransferModalOpen}
         onClose={() => setIsTransferModalOpen(false)}
@@ -164,7 +159,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         fetchAllData={fetchAllData}
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-[85%] mx-auto">
         <PriceChart
           historicalData={state.historicalData}
           selectedCrypto={selectedCrypto}

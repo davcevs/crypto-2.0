@@ -14,12 +14,9 @@ import {
   SlidersHorizontal,
   Star,
   ArrowUpDown,
-  TrendingUp,
-  TrendingDown,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { cryptoService, TRADING_PAIRS } from "../services/cryptoService";
 
 interface CryptoData {
@@ -152,7 +149,7 @@ const Markets = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8 bg-[#0b0b0b] text-white">
+    <div className=" mx-auto px-6 py-10 bg-gray-900 text-white">
       {/* Header Section */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-white mb-2">
@@ -166,7 +163,7 @@ const Markets = () => {
       {/* Search and Filter Section */}
       <div className="flex items-center gap-4 mb-6">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 w-5 h-5" />
           <Input
             placeholder="Search markets"
             value={searchTerm}
@@ -174,56 +171,56 @@ const Markets = () => {
               setSearchTerm(e.target.value);
               setCurrentPage(1); // Reset to first page when searching
             }}
-            className="pl-10 bg-[#1a1a1a] border-[#2a2a2a] text-white"
+            className="pl-10 bg-gray-800 border-gray-700 text-white"
           />
         </div>
-        <button className="p-2 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a] hover:bg-[#2a2a2a] transition-colors">
+        <button className="p-2 rounded-lg bg-gray-800 border border-gray-700 hover:bg-gray-700 transition-colors">
           <SlidersHorizontal className="w-5 h-5 text-gray-400" />
         </button>
       </div>
 
       {/* Markets Table */}
-      <div className="bg-[#0e0e0e] rounded-xl border border-[#1a1a1a] overflow-hidden">
+      <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
         <Table>
-          <TableHeader className="bg-[#1a1a1a]">
+          <TableHeader className="bg-gray-700">
             <TableRow>
               <TableHead className="w-12"></TableHead>
               <TableHead>Asset</TableHead>
               <TableHead>
                 <button
                   onClick={() => sortData("price")}
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-2 text-white hover:text-gray-300"
                 >
                   Price
-                  <ArrowUpDown className="w-4 h-4" />
+                  <ArrowUpDown className="w-4 h-4 text-gray-400" />
                 </button>
               </TableHead>
               <TableHead>24h Chart</TableHead>
               <TableHead>
                 <button
                   onClick={() => sortData("priceChangePercent")}
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-2 text-white hover:text-gray-300"
                 >
                   24h Change
-                  <ArrowUpDown className="w-4 h-4" />
+                  <ArrowUpDown className="w-4 h-4 text-gray-400" />
                 </button>
               </TableHead>
               <TableHead>
                 <button
                   onClick={() => sortData("volume")}
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-2 text-white hover:text-gray-300"
                 >
                   24h Volume
-                  <ArrowUpDown className="w-4 h-4" />
+                  <ArrowUpDown className="w-4 h-4 text-gray-400" />
                 </button>
               </TableHead>
               <TableHead>
                 <button
                   onClick={() => sortData("marketCap")}
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-2 text-white hover:text-gray-300"
                 >
                   Market Cap
-                  <ArrowUpDown className="w-4 h-4" />
+                  <ArrowUpDown className="w-4 h-4 text-gray-400" />
                 </button>
               </TableHead>
             </TableRow>
@@ -232,15 +229,15 @@ const Markets = () => {
             {currentCoins.map((coin) => (
               <TableRow
                 key={coin.symbol}
-                className="hover:bg-[#1a1a1a] cursor-pointer transition-colors"
+                className="hover:bg-gray-700 cursor-pointer transition-colors"
               >
                 <TableCell>
                   <button
                     onClick={() => toggleFavorite(coin.symbol)}
                     className={`transition-colors ${
                       favorites.includes(coin.symbol)
-                        ? "text-yellow-500"
-                        : "text-gray-400 hover:text-yellow-500"
+                        ? "text-yellow-400"
+                        : "text-gray-400 hover:text-yellow-400"
                     }`}
                   >
                     <Star className="w-4 h-4" />
@@ -256,59 +253,40 @@ const Markets = () => {
                       className="w-8 h-8 rounded-full"
                       onError={(e) => {
                         const imgElement = e.target as HTMLImageElement;
-                        // Only change source if it's not already the placeholder
                         if (
                           !imgElement.src.includes("/logos/placeholder.svg")
                         ) {
                           imgElement.src = "/logos/placeholder.svg";
-                          // Prevent further error events
                           imgElement.onerror = null;
                         }
                       }}
                     />
-                    <div>
-                      <div className="font-semibold">{coin.symbol}</div>
-                      <div className="text-sm text-gray-400">
-                        {coin.symbol.replace("USDT", "")}
-                      </div>
-                    </div>
+                    <div>{coin.symbol}</div>
                   </div>
                 </TableCell>
                 <TableCell>{formatNumber(coin.price)}</TableCell>
                 <TableCell className="w-32">
-                  <ResponsiveContainer width="100%" height={40}>
+                  <ResponsiveContainer width="100%" height={50}>
                     <AreaChart data={coin.historicalData}>
                       <Area
                         type="monotone"
                         dataKey="price"
-                        stroke={
-                          coin.priceChangePercent >= 0 ? "#10B981" : "#EF4444"
-                        }
-                        fill={
-                          coin.priceChangePercent >= 0
-                            ? "#10B98133"
-                            : "#EF444433"
-                        }
+                        stroke="#ffb90f"
+                        fill="#ffb90f"
                       />
                     </AreaChart>
                   </ResponsiveContainer>
                 </TableCell>
                 <TableCell>
-                  <span
-                    className={`flex items-center ${
+                  <div
+                    className={`text-sm ${
                       coin.priceChangePercent >= 0
-                        ? "text-green-500"
-                        : "text-red-500"
+                        ? "text-green-400"
+                        : "text-red-400"
                     }`}
                   >
-                    {coin.priceChangePercent >= 0 ? (
-                      <TrendingUp className="mr-1 w-4 h-4" />
-                    ) : (
-                      <TrendingDown className="mr-1 w-4 h-4" />
-                    )}
-                    {coin.priceChangePercent >= 0 ? "+" : ""}
                     {coin.priceChangePercent.toFixed(2)}%
-                  </span>
+                  </div>
                 </TableCell>
                 <TableCell>{formatNumber(coin.volume)}</TableCell>
                 <TableCell>{formatNumber(coin.marketCap)}</TableCell>
@@ -319,38 +297,27 @@ const Markets = () => {
       </div>
 
       {/* Pagination Controls */}
-      <div className="flex justify-center items-center mt-6 space-x-4">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => paginate(currentPage - 1)}
-          disabled={currentPage === 1}
-          className="bg-[#1a1a1a] border-[#2a2a2a] text-white hover:bg-[#2a2a2a]"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </Button>
-
-        <div className="text-white">
+      <div className="flex justify-between items-center mt-6">
+        <div className="flex gap-4">
+          <button
+            onClick={() => paginate(currentPage - 1)}
+            disabled={currentPage === 1}
+            className="p-2 bg-gray-700 rounded-lg disabled:opacity-50 hover:bg-gray-600"
+          >
+            <ChevronLeft className="w-4 h-4 text-gray-400" />
+          </button>
+          <button
+            onClick={() => paginate(currentPage + 1)}
+            disabled={currentPage === totalPages}
+            className="p-2 bg-gray-700 rounded-lg disabled:opacity-50 hover:bg-gray-600"
+          >
+            <ChevronRight className="w-4 h-4 text-gray-400" />
+          </button>
+        </div>
+        <div className="text-gray-400 text-sm">
           Page {currentPage} of {totalPages}
         </div>
-
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => paginate(currentPage + 1)}
-          disabled={currentPage === totalPages}
-          className="bg-[#1a1a1a] border-[#2a2a2a] text-white hover:bg-[#2a2a2a]"
-        >
-          <ChevronRight className="h-4 w-4" />
-        </Button>
       </div>
-
-      {/* Loading State */}
-      {isLoading && (
-        <div className="text-center py-8 text-gray-400">
-          Loading cryptocurrency data...
-        </div>
-      )}
     </div>
   );
 };

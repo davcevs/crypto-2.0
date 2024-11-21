@@ -1,3 +1,4 @@
+import React from "react";
 import { motion } from "framer-motion";
 import {
   LineChart,
@@ -9,7 +10,7 @@ import {
 } from "recharts";
 import { TrendingUp, Shield, Clock } from "lucide-react";
 
-const TradingTools = () => {
+const TradingTools: React.FC = () => {
   // Sample data for the chart
   const data = Array.from({ length: 30 }, (_, i) => ({
     date: i,
@@ -21,21 +22,24 @@ const TradingTools = () => {
       icon: TrendingUp,
       title: "Advanced Charts",
       desc: "Professional-grade technical analysis tools",
+      color: "text-blue-500",
     },
     {
       icon: Clock,
       title: "24/7 Trading",
       desc: "Round-the-clock access to global markets",
+      color: "text-green-500",
     },
     {
       icon: Shield,
       title: "Secure Trading",
       desc: "Multi-layer security architecture",
+      color: "text-purple-500",
     },
   ];
 
   return (
-    <section className="py-24 relative overflow-hidden">
+    <section className="bg-white py-24">
       <div className="container mx-auto px-4">
         <div className="grid md:grid-cols-2 gap-16 items-center">
           <motion.div
@@ -44,23 +48,24 @@ const TradingTools = () => {
             viewport={{ once: true }}
             className="space-y-6"
           >
-            <h2 className="text-4xl font-bold">Professional Trading Tools</h2>
-            <p className="text-gray-400 leading-relaxed">
+            <h2 className="text-4xl font-bold text-gray-900">
+              Professional Trading Tools
+            </h2>
+            <p className="text-gray-600 leading-relaxed">
               Access advanced charting, real-time market data, and powerful
               trading features designed for both beginners and experts.
             </p>
-
-            <div className="h-64 bg-white/5 backdrop-blur-lg rounded-2xl p-4">
+            <div className="h-64 bg-gray-100 rounded-2xl p-4 shadow-md">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={data}>
                   <XAxis dataKey="date" hide />
                   <YAxis hide />
                   <Tooltip
                     contentStyle={{
-                      background: "rgba(0, 0, 0, 0.8)",
-                      border: "none",
+                      background: "white",
+                      border: "1px solid #e0e0e0",
                       borderRadius: "8px",
-                      padding: "12px",
+                      boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
                     }}
                   />
                   <Line
@@ -74,7 +79,6 @@ const TradingTools = () => {
               </ResponsiveContainer>
             </div>
           </motion.div>
-
           <motion.div
             initial={{ opacity: 0, x: 50 }}
             whileInView={{ opacity: 1, x: 0 }}
@@ -85,12 +89,17 @@ const TradingTools = () => {
               <motion.div
                 key={index}
                 whileHover={{ x: 10 }}
-                className="flex gap-6 p-6 bg-white/5 backdrop-blur-lg rounded-2xl hover:bg-white/10 transition-all cursor-pointer"
+                className="flex gap-6 p-6 bg-gray-50 rounded-2xl border border-gray-100 hover:border-blue-200 transition-all cursor-pointer"
               >
-                <feature.icon className="w-8 h-8 text-blue-400 flex-shrink-0" />
+                <feature.icon
+                  className={`w-10 h-10 ${feature.color} flex-shrink-0`}
+                  strokeWidth={2}
+                />
                 <div>
-                  <h3 className="font-bold text-lg mb-2">{feature.title}</h3>
-                  <p className="text-gray-400">{feature.desc}</p>
+                  <h3 className="font-bold text-lg mb-2 text-gray-900">
+                    {feature.title}
+                  </h3>
+                  <p className="text-gray-600">{feature.desc}</p>
                 </div>
               </motion.div>
             ))}

@@ -20,18 +20,18 @@ export const PortfolioCards: React.FC<PortfolioCardsProps> = ({
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="grid grid-cols-1 md:grid-cols-3 gap-4"
+      className="grid grid-cols-1 md:grid-cols-3 gap-6 w-[85%] mx-auto"
     >
-      <motion.div whileHover={{ y: -5 }} transition={{ duration: 0.2 }}>
-        <Card className="bg-gray-800 border-gray-700">
+      <motion.div whileHover={{ y: -5 }} transition={{ duration: 0.3 }}>
+        <Card className="bg-gray-900 border border-gray-800 shadow-xl rounded-lg">
           <CardHeader>
             <CardTitle className="flex items-center text-white">
-              <Wallet className="mr-2 text-blue-400" />
+              <Wallet className="mr-2 text-yellow-500" />
               Portfolio Value
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-white">
+            <div className="text-2xl font-semibold text-white">
               {formatCurrency(walletStats?.totalValue || 0)}
             </div>
             <div className="text-sm text-gray-400">
@@ -41,20 +41,20 @@ export const PortfolioCards: React.FC<PortfolioCardsProps> = ({
         </Card>
       </motion.div>
 
-      <motion.div whileHover={{ y: -5 }} transition={{ duration: 0.2 }}>
-        <Card className="bg-gray-800 border-gray-700">
+      <motion.div whileHover={{ y: -5 }} transition={{ duration: 0.3 }}>
+        <Card className="bg-gray-900 border border-gray-800 shadow-xl rounded-lg">
           <CardHeader>
             <CardTitle className="flex items-center text-white">
-              <TrendingUp className="mr-2 text-blue-400" />
+              <TrendingUp className="mr-2 text-yellow-500" />
               24h Change
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div
-              className={`text-2xl font-bold ${
+              className={`text-2xl font-semibold ${
                 walletStats?.dailyChange >= 0
-                  ? "text-green-400"
-                  : "text-red-400"
+                  ? "text-green-500"
+                  : "text-red-500"
               }`}
             >
               {formatCurrency(walletStats?.dailyChange || 0)}
@@ -66,16 +66,16 @@ export const PortfolioCards: React.FC<PortfolioCardsProps> = ({
         </Card>
       </motion.div>
 
-      <motion.div whileHover={{ y: -5 }} transition={{ duration: 0.2 }}>
-        <Card className="bg-gray-800 border-gray-700">
+      <motion.div whileHover={{ y: -5 }} transition={{ duration: 0.3 }}>
+        <Card className="bg-gray-900 border border-gray-800 shadow-xl rounded-lg">
           <CardHeader>
             <CardTitle className="flex items-center text-white">
-              <History className="mr-2 text-blue-400" />
+              <History className="mr-2 text-yellow-500" />
               Recent Activity
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-white">
+            <div className="text-2xl font-semibold text-white">
               {transactions.length}
             </div>
             <div className="text-sm text-gray-400">Total Transactions</div>

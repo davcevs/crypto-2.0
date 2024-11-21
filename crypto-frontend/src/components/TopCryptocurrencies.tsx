@@ -27,7 +27,6 @@ const TopCryptocurrencies = () => {
     setTopCoins(coinData);
   };
 
-  // Automatic sliding effect
   useEffect(() => {
     fetchCryptoData();
   }, []);
@@ -37,18 +36,16 @@ const TopCryptocurrencies = () => {
       setCurrentPage((prevPage) =>
         (prevPage + 1) * coinsPerPage >= topCoins.length ? 0 : prevPage + 1
       );
-    }, 10000); // Slide every 4 seconds
+    }, 10000);
 
     return () => clearInterval(slideInterval);
   }, [topCoins]);
 
-  // Manually calculate the coins to display
   const displayedCoins = topCoins.slice(
     currentPage * coinsPerPage,
     currentPage * coinsPerPage + coinsPerPage
   );
 
-  // Manual navigation
   const handleNextPage = () => {
     setCurrentPage((prevPage) =>
       (prevPage + 1) * coinsPerPage >= topCoins.length ? 0 : prevPage + 1
@@ -62,13 +59,15 @@ const TopCryptocurrencies = () => {
   };
 
   return (
-    <section className="container mx-auto px-4 py-12 relative">
+    <section className="container mx-auto px-6 py-12 relative bg-white rounded-lg shadow-xl">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-3xl font-bold">Top Cryptocurrencies</h2>
+        <h2 className="text-4xl font-semibold text-gray-800">
+          Top Cryptocurrencies
+        </h2>
         <motion.button
           onClick={fetchCryptoData}
           whileTap={{ rotate: 180 }}
-          className="text-gray-400 hover:text-white"
+          className="text-gray-600 hover:text-blue-500 bg-gray-200 p-2 rounded-full shadow-md transition-all duration-300 hover:bg-blue-100"
         >
           <RefreshCcw size={24} />
         </motion.button>
@@ -78,15 +77,15 @@ const TopCryptocurrencies = () => {
         {/* Navigation buttons */}
         <button
           onClick={handlePrevPage}
-          className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-gray-800/50 rounded-full p-2 hover:bg-gray-700/50"
+          className="absolute left-4 top-1/2 -translate-y-1/2 z-10 bg-white/80 rounded-full p-3 shadow-lg hover:bg-blue-50 transition-all"
         >
-          <ChevronLeft size={24} />
+          <ChevronLeft size={24} className="text-blue-500" />
         </button>
         <button
           onClick={handleNextPage}
-          className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-gray-800/50 rounded-full p-2 hover:bg-gray-700/50"
+          className="absolute right-4 top-1/2 -translate-y-1/2 z-10 bg-white/80 rounded-full p-3 shadow-lg hover:bg-blue-50 transition-all"
         >
-          <ChevronRight size={24} />
+          <ChevronRight size={24} className="text-blue-500" />
         </button>
 
         {/* Coins Grid with Animation */}
@@ -97,10 +96,14 @@ const TopCryptocurrencies = () => {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -50 }}
             transition={{ duration: 0.5 }}
-            className="grid grid-cols-2 md:grid-cols-4 gap-4"
+            className="grid grid-cols-2 md:grid-cols-4 gap-6"
           >
             {displayedCoins.map((coin) => (
-              <CryptoCoinCard key={coin.symbol} coin={coin} />
+              <CryptoCoinCard
+                key={coin.symbol}
+                coin={coin}
+                className="bg-white shadow-lg hover:shadow-xl transition-all rounded-xl p-4 text-gray-800"
+              />
             ))}
           </motion.div>
         </AnimatePresence>

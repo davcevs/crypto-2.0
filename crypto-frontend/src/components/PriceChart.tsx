@@ -26,7 +26,7 @@ export const PriceChart: React.FC<PriceChartProps> = ({
     const data = historicalData[symbol] || [];
 
     return (
-      <div className="h-64">
+      <div className="h-64 ">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data}>
             <defs>

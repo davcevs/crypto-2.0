@@ -43,7 +43,7 @@ export const AssetsTable: React.FC<AssetsTableProps> = ({
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.2 }}
     >
-      <Card className="bg-gray-900 border-gray-800 rounded-xl shadow-lg">
+      <Card className="bg-gray-900 border-gray-800 rounded-xl shadow-lg w-[85%] mx-auto">
         <CardHeader className="border-b border-gray-800">
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-2">
@@ -64,7 +64,7 @@ export const AssetsTable: React.FC<AssetsTableProps> = ({
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
+          <div className="overflow-hidden">
             <table className="w-full">
               <thead className="bg-gray-800/50">
                 <tr className="text-gray-400 text-sm">
