@@ -101,7 +101,7 @@ const Trade: React.FC<CryptoTradingProps> = ({ onTradeComplete }) => {
   }
 
   return (
-    <div className="min-h-screen bg-[#161A1E] text-white p-4">
+    <div className="min-h-screen bg-[#161A1E] text-white p-4 pt-10">
       {error && (
         <Alert
           variant="destructive"

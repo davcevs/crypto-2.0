@@ -44,7 +44,6 @@ const ProtectedRoute = ({
   return children;
 };
 
-// Public Route Component - redirects logged-in users away from auth pages
 const PublicRoute = ({ children }: { children: JSX.Element }) => {
   const user = getCurrentUser();
   const location = useLocation();
@@ -58,6 +57,7 @@ const PublicRoute = ({ children }: { children: JSX.Element }) => {
 
   return children;
 };
+
 const DashboardRoute = () => {
   const user = getCurrentUser();
   const location = useLocation();
@@ -97,19 +97,44 @@ const CasinoWrapper = () => {
 function App() {
   const location = useLocation();
 
+  const BINANCE_COLORS = {
+    PRIMARY: "#F0B90B", // Binance Yellow
+    BACKGROUND: "#181A20", // Dark Background
+    TEXT_PRIMARY: "#FFFFFF", // White
+    TEXT_SECONDARY: "#848E9C", // Light Gray
+    ACCENT: "#1E2026", // Darker Accent
+  };
+
   return (
-    <div className="flex flex-col min-h-screen bg-white text-gray-900">
-      <header className="bg-white shadow-sm">
+    <div
+      className="flex flex-col min-h-screen"
+      style={{
+        backgroundColor: BINANCE_COLORS.BACKGROUND,
+        color: BINANCE_COLORS.TEXT_PRIMARY,
+      }}
+    >
+      <header
+        className="sticky top-0 z-50"
+        style={{
+          backgroundColor: BINANCE_COLORS.ACCENT,
+          borderBottom: `1px solid ${BINANCE_COLORS.PRIMARY}`,
+        }}
+      >
         <Navbar />
       </header>
-      <main className="flex-grow w-full max-w-full mx-auto">
+      <main
+        className="flex-grow w-full max-w-full mx-auto pt-6"
+        style={{
+          backgroundColor: BINANCE_COLORS.BACKGROUND,
+        }}
+      >
         <AnimatePresence mode="wait">
           <Routes location={location} key={location.pathname}>
             <Route
               path="/"
               element={
                 <PublicRoute>
-                  <div className="min-h-screen">
+                  <div className="min-h-screen w-full max-w-7xl mx-auto px-4">
                     <Home />
                   </div>
                 </PublicRoute>
@@ -119,7 +144,7 @@ function App() {
               path="/login"
               element={
                 <PublicRoute>
-                  <div className="min-h-screen">
+                  <div className="min-h-screen bg-[#f0f2f5] flex items-center justify-center">
                     <Login />
                   </div>
                 </PublicRoute>
@@ -129,7 +154,7 @@ function App() {
               path="/register"
               element={
                 <PublicRoute>
-                  <div className="min-h-screen">
+                  <div className="min-h-screen bg-[#f0f2f5] flex items-center justify-center">
                     <Register />
                   </div>
                 </PublicRoute>
@@ -139,7 +164,7 @@ function App() {
               path="/markets"
               element={
                 <ProtectedRoute>
-                  <div className="w-[85%] mx-auto">
+                  <div className="w-full max-w-7xl mx-auto px-4">
                     <Markets />
                   </div>
                 </ProtectedRoute>
@@ -182,7 +207,6 @@ function App() {
                 </ProtectedRoute>
               }
             />
-            <Route path="/learn" element={<Learn />} />
             <Route
               path="/crypto-casino"
               element={
@@ -195,6 +219,7 @@ function App() {
           </Routes>
         </AnimatePresence>
       </main>
+      <Footer />
     </div>
   );
 }

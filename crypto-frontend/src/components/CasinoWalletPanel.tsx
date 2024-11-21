@@ -24,7 +24,7 @@ const CasinoWalletPanel: React.FC<WalletPanelProps> = ({
       initial={{ x: "100%" }}
       animate={{ x: 0 }}
       exit={{ x: "100%" }}
-      className="fixed right-0 top-0 h-full w-80 bg-gray-900 p-6 shadow-2xl overflow-y-auto"
+      className="fixed right-0 top-0 h-full w-80 bg-gray-900 p-6 shadow-2xl overflow-y-auto mt-10"
     >
       <button
         onClick={onClose}

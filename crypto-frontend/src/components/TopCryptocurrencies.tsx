@@ -59,11 +59,8 @@ const TopCryptocurrencies = () => {
   };
 
   return (
-    <section className="container mx-auto px-6 py-12 relative bg-white rounded-lg shadow-xl">
+    <section className="container mx-auto px-6 py-12 relative bg-[#181A20] rounded-lg shadow-xl">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-4xl font-semibold text-gray-800">
-          Top Cryptocurrencies
-        </h2>
         <motion.button
           onClick={fetchCryptoData}
           whileTap={{ rotate: 180 }}

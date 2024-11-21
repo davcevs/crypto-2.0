@@ -226,6 +226,7 @@ const CryptoCasino = () => {
     }, 0);
 
     const baseBalance = Number(wallet.cashBalance || 0);
+    console.log(baseBalance, cryptoValue);
     return (baseBalance + cryptoValue).toFixed(2);
   };
 
