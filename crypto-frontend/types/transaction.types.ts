@@ -1,11 +1,14 @@
+// transaction.types.ts
 export interface Transaction {
   id: string;
-  type: 'BUY' | 'SELL';
+  type: 'BUY' | 'SELL' | 'TRANSFER';
   symbol: string;
   amount: number;
   price: number;
   total: number;
   createdAt: Date;
+  description?: string;
+  toWallet?: string;
 }
 
 export interface TransactionStats {
@@ -17,7 +20,7 @@ export interface TransactionStats {
 
 export interface CreateTransactionDto {
   walletId: string;
-  type: 'BUY' | 'SELL';
+  type: 'BUY' | 'SELL' | 'TRANSFER';
   symbol: string;
   amount: number;
   price: number;

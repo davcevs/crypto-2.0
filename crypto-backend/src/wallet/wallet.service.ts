@@ -304,7 +304,6 @@ export class WalletService {
     symbol: string,
     amount: number
   ) {
-    // Start a transaction using DataSource
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -350,14 +349,33 @@ export class WalletService {
         throw new BadRequestException(`You do not hold any ${symbol}`);
       }
 
-      // Validate transfer amount
+      // Convert amounts to numbers and validate
       const parsedAmount = Number(amount);
+      const currentFromAmount = Number(fromHolding.amount);
+
       if (isNaN(parsedAmount) || parsedAmount <= 0) {
         throw new BadRequestException('Invalid transfer amount');
       }
 
-      if (fromHolding.amount < parsedAmount) {
+      if (currentFromAmount < parsedAmount) {
         throw new BadRequestException(`Insufficient ${symbol} balance`);
+      }
+
+      // Get current market price
+      const currentPrice = await this.binanceService.getPrice(symbol);
+      if (!currentPrice) {
+        throw new BadRequestException('Could not fetch current market price');
+      }
+
+      // Calculate transfer value in USD
+      const transferValue = Number((parsedAmount * currentPrice).toFixed(2));
+
+      // Ensure cash balances are converted to numbers
+      const senderCashBalance = Number(fromWallet.cashBalance) || 0;
+
+      // IMPORTANT: Check if transfer would cause negative balance
+      if (senderCashBalance < transferValue) {
+        throw new BadRequestException('Insufficient cash balance for transfer');
       }
 
       // Find or create recipient's holding
@@ -373,50 +391,73 @@ export class WalletService {
           symbol: symbol.toUpperCase(),
           amount: 0,
           wallet: recipientUser.wallet,
-          averageBuyPrice: fromHolding.averageBuyPrice
+          averageBuyPrice: currentPrice
         });
       }
 
-      // Precise decimal handling
-      fromHolding.amount = parseFloat((fromHolding.amount - parsedAmount).toFixed(8));
-      toHolding.amount = parseFloat((toHolding.amount + parsedAmount).toFixed(8));
+      // Calculate new amounts with proper number handling
+      const newFromAmount = Number((currentFromAmount - parsedAmount).toFixed(8));
+      const newToAmount = Number((Number(toHolding.amount) + parsedAmount).toFixed(8));
 
-      // Fetch current market price for transaction record
-      const currentPrice = await this.binanceService.getPrice(symbol);
+      // Update holdings
+      fromHolding.amount = newFromAmount;
+      toHolding.amount = newToAmount;
 
-      // Create transaction record
-      const transaction = this.transactionRepository.create({
+      const recipientCashBalance = Number(recipientUser.wallet.cashBalance) || 0;
+
+      // Deduct transfer value from sender's cash balance
+      const newSenderCashBalance = Number((senderCashBalance - transferValue).toFixed(2));
+
+      // Add transfer value to recipient's cash balance
+      const newRecipientCashBalance = Number((recipientCashBalance + transferValue).toFixed(2));
+
+      // Update wallet balances
+      fromWallet.cashBalance = newSenderCashBalance;
+      recipientUser.wallet.cashBalance = newRecipientCashBalance;
+
+      // Create transaction records for both sender and recipient
+      const senderTransaction = this.transactionRepository.create({
         wallet: fromWallet,
         toWallet: recipientUser.wallet,
         type: 'TRANSFER',
         symbol: symbol.toUpperCase(),
-        amount: parsedAmount,
+        amount: -parsedAmount,
         price: currentPrice,
-        total: parsedAmount * currentPrice,
+        total: -transferValue,
         description: `Transfer to ${recipientUser.username || recipientUser.email}`
       });
 
-      // Save holdings and transaction
-      await this.holdingRepository.save([fromHolding, toHolding]);
-      await this.transactionRepository.save(transaction);
+      const recipientTransaction = this.transactionRepository.create({
+        wallet: recipientUser.wallet,
+        toWallet: fromWallet,
+        type: 'TRANSFER',
+        symbol: symbol.toUpperCase(),
+        amount: parsedAmount,
+        price: currentPrice,
+        total: transferValue,
+        description: `Transfer from ${fromWallet.user.username || fromWallet.user.email}`
+      });
+
+      // Save all updates using query runner
+      await queryRunner.manager.save([fromHolding, toHolding]);
+      await queryRunner.manager.save([fromWallet, recipientUser.wallet]);
+      await queryRunner.manager.save([senderTransaction, recipientTransaction]);
 
       // Commit transaction
       await queryRunner.commitTransaction();
 
       return {
         success: true,
-        message: `Transferred ${parsedAmount} ${symbol} to ${recipientUser.username || recipientUser.email}`
+        message: `Transferred ${parsedAmount} ${symbol} to ${recipientUser.username || recipientUser.email}`,
+        transferValue,
+        fromWalletNewBalance: newSenderCashBalance,
+        toWalletNewBalance: newRecipientCashBalance
       };
     } catch (error) {
       // Rollback transaction in case of error
       await queryRunner.rollbackTransaction();
-
-      // Log the full error for debugging
       console.error('Transfer Crypto Error:', error);
-
-      throw new BadRequestException(
-        error.message || 'Transfer failed. Please try again.'
-      );
+      throw new BadRequestException(error.message || 'Transfer failed. Please try again.');
     } finally {
       // Release the query runner
       await queryRunner.release();

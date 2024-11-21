@@ -158,6 +158,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       />
 
       <AssetsTable
+        user={user}
         holdings={state.holdings}
         marketData={state.marketData}
         fetchAllData={fetchAllData}

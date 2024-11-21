@@ -10,7 +10,12 @@ export class CryptoHolding {
   @Column()
   symbol: string;
 
-  @Column({ type: 'decimal', precision: 20, scale: 8 })
+  @Column({
+    type: 'decimal', precision: 20, scale: 8, transformer: {
+      to: (value: number) => value,
+      from: (value: string) => Number(value)
+    }
+  })
   amount: number;
 
   @Column({ type: 'decimal', precision: 20, scale: 8 })
