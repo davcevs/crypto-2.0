@@ -6,6 +6,7 @@ import {
   Min,
   IsNotEmpty,
   IsPositive,
+  IsEnum,
 } from 'class-validator';
 
 export class BuySellCryptoDto {
@@ -41,4 +42,32 @@ export class TransferCryptoDto extends BuySellCryptoDto {
   @IsNumber()
   @IsPositive()
   amount: number;
+}
+
+
+export enum CashBalanceTransactionType {
+  DEPOSIT = 'DEPOSIT',
+  WITHDRAWAL = 'WITHDRAWAL'
+}
+
+export class UpdateCashBalanceDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  userId: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  walletId: string;
+
+  @ApiProperty()
+  @IsNumber()
+  @IsNotEmpty()
+  amount: number;
+
+  @ApiProperty({ enum: CashBalanceTransactionType })
+  @IsEnum(CashBalanceTransactionType)
+  @IsNotEmpty()
+  type: CashBalanceTransactionType;
 }

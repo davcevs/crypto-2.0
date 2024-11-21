@@ -13,6 +13,7 @@ import {
   WalletStats,
   ApiError,
   TradePayload,
+  CryptoHolding,
 } from "../interfaces/WalletInterfaces";
 import { User } from "../interfaces/UserInterface";
 
@@ -82,7 +83,7 @@ const CryptoCasino = () => {
 
       // Safely process wallet holdings
       const safeHoldings = (walletResponse.data.holdings || []).map(
-        (holding) => ({
+        (holding: any) => ({
           ...holding,
           currentPrice: 1, // Default price
           amount: holding.amount || 0,
@@ -90,7 +91,7 @@ const CryptoCasino = () => {
       );
 
       const updatedHoldings = await Promise.all(
-        safeHoldings.map(async (holding) => {
+        safeHoldings.map(async (holding: CryptoHolding) => {
           const symbol = holding.symbol.endsWith("USDT")
             ? holding.symbol
             : `${holding.symbol}USDT`;
@@ -103,10 +104,18 @@ const CryptoCasino = () => {
         })
       );
 
-      const updatedWallet = {
-        ...walletResponse.data,
-        balance: walletResponse.data.balance || 0,
+      // Explicitly parse cash balance
+      const cashBalance = parseFloat(
+        String(walletResponse.data.cashBalance || 0)
+      );
+
+      // Create updated wallet object that matches WalletData interface
+      const updatedWallet: WalletData = {
+        id: walletResponse.data.id,
+        balance: cashBalance,
+        cashBalance: cashBalance,
         holdings: updatedHoldings,
+        transactions: walletResponse.data.transactions || [],
       };
 
       setWallet(updatedWallet);
@@ -114,7 +123,7 @@ const CryptoCasino = () => {
       setError(null);
     } catch (err) {
       const apiError = err as ApiError;
-      setError(apiError.response?.message || "Error fetching wallet");
+      setError(apiError.response?.data?.message || "Error fetching wallet");
       console.error("Wallet fetch error:", err);
     }
   }, []);
@@ -123,35 +132,55 @@ const CryptoCasino = () => {
   const updateBalance = async (amount: number) => {
     try {
       if (userId && walletId) {
-        // Fetch current price for USDT
-        const usdtPrice = await fetchCryptoPrice("USDT");
+        // Determine transaction type based on amount
+        const transactionType = amount > 0 ? "DEPOSIT" : "WITHDRAWAL";
 
-        const payload: TradePayload = {
+        // Ensure absolute value for amount
+        const absoluteAmount = Math.abs(amount);
+
+        // Check if there's enough cash balance for withdrawals
+        if (transactionType === "WITHDRAWAL") {
+          const currentCashBalance = Number(wallet?.cashBalance || 0);
+          if (absoluteAmount > currentCashBalance) {
+            setError("Insufficient cash balance");
+            return false;
+          }
+        }
+
+        // Create a payload for cash balance transaction
+        const payload = {
           userId,
           walletId,
-          symbol: "USDT",
-          amount: Math.abs(amount),
-          type: amount > 0 ? "BUY" : "SELL", // Determine transaction type
-          price: usdtPrice || 1, // Use fetched price or default to 1
+          amount: absoluteAmount,
+          type: transactionType,
         };
 
-        console.log("Transaction Payload:", payload);
+        console.log("Cash Balance Transaction Payload:", payload);
 
-        const response = await axiosInstance.post("/transactions", payload);
-        console.log("Transaction Response:", response.data);
+        // Make an API call to update cash balance
+        const response = await axiosInstance.post(
+          "wallet/cash-balance/update",
+          payload
+        );
+        console.log("Cash Balance Transaction Response:", response.data);
 
         // Immediately refresh wallet after transaction
         await fetchWalletData(walletId);
 
+        // Handle reward display for positive amounts
         if (amount > 0) {
-          setRewardAmount(amount);
+          setRewardAmount(absoluteAmount);
           setShowReward(true);
         }
+
+        return true;
       }
+      return false;
     } catch (err) {
       const apiError = err as ApiError;
       console.error("Transaction Error:", apiError.response?.data);
       setError(apiError.response?.data?.message || "Transaction failed");
+      return false;
     }
   };
 

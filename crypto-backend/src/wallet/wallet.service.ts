@@ -464,6 +464,41 @@ export class WalletService {
     }
   }
 
+  async updateCashBalance(
+    userId: string,
+    walletId: string,
+    amount: number,
+    type: 'DEPOSIT' | 'WITHDRAWAL'
+  ) {
+    // Validate user and wallet
+    const wallet = await this.getWalletById(walletId);
+
+    if (!wallet) {
+      throw new NotFoundException('Wallet not found');
+    }
+
+    // Check for withdrawal constraints if needed
+    if (type === 'WITHDRAWAL' && amount > wallet.cashBalance) {
+      throw new BadRequestException('Insufficient cash balance');
+    }
+
+    // Perform the cash balance update
+    if (type === 'DEPOSIT') {
+      wallet.cashBalance += amount;
+    } else {
+      wallet.cashBalance -= amount;
+    }
+
+    // Save the updated wallet
+    await this.walletRepository.save(wallet);
+
+
+    return {
+      success: true,
+      cashBalance: wallet.cashBalance,
+      message: `Cash balance ${type.toLowerCase()}ed successfully`
+    };
+  }
 
   async getWalletStats(walletId: string): Promise<{
     totalValue: number;

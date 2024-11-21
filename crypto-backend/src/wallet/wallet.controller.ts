@@ -2,7 +2,7 @@ import { Controller, Get, Post, Body, Param, UseGuards } from '@nestjs/common';
 import { WalletService } from './wallet.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { BuySellCryptoDto, TransferCryptoDto } from '../auth/dto/wallet.dto';
+import { BuySellCryptoDto, TransferCryptoDto, UpdateCashBalanceDto } from '../auth/dto/wallet.dto';
 import { CryptoHoldingsService } from 'src/crypto-holdings/crypto-holdings.service';
 
 @ApiTags('Wallet')
@@ -95,6 +95,24 @@ export class WalletController {
       return result;
     } catch (error) {
       console.error('Transfer Controller Error:', error);
+      throw error;
+    }
+  }
+
+  @Post('cash-balance/update')
+  @ApiOperation({ summary: 'Update cash balance for wallet' })
+  async updateCashBalance(
+    @Body() payload: UpdateCashBalanceDto
+  ) {
+    try {
+      return await this.walletService.updateCashBalance(
+        payload.userId,
+        payload.walletId,
+        payload.amount,
+        payload.type
+      );
+    } catch (error) {
+      console.error('Cash Balance Update Error:', error);
       throw error;
     }
   }
