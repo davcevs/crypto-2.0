@@ -102,7 +102,7 @@ function App() {
       <header>
         <Navbar />
       </header>
-      <main className="flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
+      <main className="flex-grow w-full max-w-[100vh] mx-auto mt-8">
         <AnimatePresence mode="wait">
           <Routes location={location} key={location.pathname}>
             <Route

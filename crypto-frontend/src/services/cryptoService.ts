@@ -1,18 +1,9 @@
 // src/services/cryptoService.ts
 import axios, { AxiosInstance } from "axios";
-import { WalletData } from "../interfaces/WalletInterfaces";
-import cryptoHoldingsService from "./cryptoHoldingsService";
 
 export interface CryptoPrice {
   symbol: string;
   price: number;
-}
-
-export interface BuySellCryptoDto {
-  userId: string;
-  walletId: string;
-  symbol: string;
-  amount: number | string; // Allow both number and string for flexibility
 }
 
 export interface CryptoStats {
@@ -20,28 +11,13 @@ export interface CryptoStats {
   priceChangePercent: number;
 }
 
-export interface BuySellCryptoDto {
-  walletId: string;
-  symbol: string;
-  amount: number;
-}
-
-export interface TransferCryptoDto {
-  toWalletId: string;
-  symbol: string;
-  amount: number;
-}
-
 // Common trading pairs
 export const TRADING_PAIRS = [
-  "BTCUSDT",
-  "ETHUSDT",
-  "BNBUSDT",
-  "XRPUSDT",
-  "ADAUSDT",
-  "DOGEUSDT",
-  "MATICUSDT",
-  "SOLUSDT",
+  "BTCUSDT", "ETHUSDT", "BNBUSDT", "XRPUSDT", "ADAUSDT",
+  "DOGEUSDT", "MATICUSDT", "SOLUSDT", "AVAXUSDT",
+  "TRXUSDT", "LINKUSDT", "LTCUSDT", "ATOMUSDT", "NEARUSDT",
+  "XLMUSDT", "ALGOUSDT", "UNIUSDT", "ICPUSDT", "FILUSDT",
+  "ETCUSDT", "SANDUSDT", "MANAUSDT", "AXSUSDT", "OPUSDT",
 ] as const;
 
 export type TradingPair = (typeof TRADING_PAIRS)[number];
@@ -56,6 +32,22 @@ export const MINIMUM_TRADE_AMOUNTS: Record<TradingPair, number> = {
   DOGEUSDT: 100,
   MATICUSDT: 1,
   SOLUSDT: 0.1,
+  AVAXUSDT: 0.1,
+  TRXUSDT: 1,
+  LINKUSDT: 0.1,
+  LTCUSDT: 0.01,
+  ATOMUSDT: 0.1,
+  NEARUSDT: 0.1,
+  XLMUSDT: 1,
+  ALGOUSDT: 1,
+  UNIUSDT: 0.1,
+  ICPUSDT: 0.1,
+  FILUSDT: 0.1,
+  ETCUSDT: 0.1,
+  SANDUSDT: 1,
+  MANAUSDT: 1,
+  AXSUSDT: 0.1,
+  OPUSDT: 0.1,
 };
 
 const API_BASE_URL =
@@ -71,7 +63,6 @@ export class CryptoService {
   private currentPrices: Partial<Record<TradingPair, number>> = {};
   private priceUpdateInterval: NodeJS.Timeout | null = null;
   private axiosInstance: AxiosInstance;
-  private cachedWalletId: string | null = null;
 
   private constructor() {
     this.axiosInstance = axios.create({
@@ -153,58 +144,7 @@ export class CryptoService {
     }
   }
 
-  private getUserData() {
-    const userData = JSON.parse(localStorage.getItem("user") || "{}");
-    if (!userData.user?.id) {
-      throw new Error("User data not found. Please login again.");
-    }
-    return userData.user;
-  }
 
-  public async createWallet(userId: string): Promise<string> {
-    try {
-      const response = await axios.post(`${API_BASE_URL}/wallet`, { userId });
-      return response.data.walletId;
-    } catch (error) {
-      console.error("Error creating wallet:", error);
-      throw new Error("Failed to create wallet");
-    }
-  }
-
-  public async getWalletId(): Promise<string> {
-    try {
-      // Return cached wallet ID if available
-      if (this.cachedWalletId) {
-        return this.cachedWalletId;
-      }
-
-      // First get user data
-      const userData = this.getUserData();
-
-      // Get wallet details using user ID - note the updated endpoint
-      const response = await this.axiosInstance.get(
-        `/wallet/user/${userData.id}`
-      );
-
-      if (!response.data?.walletId) {
-        throw new Error("No wallet ID found in response");
-      }
-
-      // Cache the wallet ID
-      this.cachedWalletId = response.data.walletId;
-      return this.cachedWalletId;
-    } catch (error: any) {
-      console.error("Error fetching wallet ID:", error);
-      if (error.response?.status === 404) {
-        throw new Error(
-          "Wallet not found. Please ensure you have created a wallet."
-        );
-      }
-      throw new Error(
-        "Failed to fetch wallet ID. Please ensure you are logged in."
-      );
-    }
-  }
 
   public async getPrice(symbol: string): Promise<number> {
     try {
@@ -228,199 +168,7 @@ export class CryptoService {
     }
   }
 
-  public async getUserWalletId(): Promise<string> {
-    try {
-      const userData = this.getUserData();
-      const response = await axios.get(
-        `${API_BASE_URL}/wallet/user/${userData.id}`
-      );
-      return response.data.walletId;
-    } catch (error) {
-      console.error("Error fetching wallet ID:", error);
-      throw new Error("Failed to fetch wallet ID");
-    }
-  }
 
-  public async getWalletData(): Promise<WalletData> {
-    try {
-      const userData = this.getUserData();
-      const walletId = await this.getWalletId();
-
-      // Get the basic wallet data
-      const response = await this.axiosInstance.get(`/wallet/${walletId}`);
-
-      // Get the crypto holdings
-      const holdings = await cryptoHoldingsService.getCryptoHoldings(walletId);
-
-      console.log("Raw wallet response:", response.data);
-      console.log("Current holdings:", holdings);
-
-      // Ensure the response data has the expected structure
-      const walletData: WalletData = {
-        walletId: response.data.walletId,
-        userId: userData.id,
-        holdings: holdings, // Use the holdings from cryptoHoldingsService
-        cashBalance: parseFloat(response.data.cashBalance),
-        balances: Array.isArray(response.data.balances)
-          ? response.data.balances
-          : [],
-      };
-
-      return walletData;
-    } catch (error: any) {
-      console.error("Error fetching wallet data:", error);
-      throw new Error("Failed to fetch wallet data");
-    }
-  }
-
-  public async buyCrypto(dto: BuySellCryptoDto): Promise<void> {
-    try {
-      const walletId = await this.getWalletId();
-      const currentPrice = await this.getPrice(dto.symbol);
-
-      // Process the transaction first
-      const requestBody = {
-        userId: dto.userId,
-        walletId: walletId,
-        symbol: dto.symbol,
-        amount: dto.amount,
-        price: currentPrice,
-      };
-
-      await this.axiosInstance.post(`/wallet/${walletId}/buy`, requestBody);
-
-      // Update the holdings with the new transaction
-      await cryptoHoldingsService.updateHolding({
-        walletId,
-        symbol: dto.symbol,
-        amount: dto.amount, // Send just the new transaction amount
-        transactionType: "BUY",
-        price: currentPrice,
-      });
-
-      // Invalidate the cache
-      this.cachedWalletId = null;
-    } catch (error: any) {
-      console.error("Buy error details:", error.response?.data);
-      if (error.response?.data?.message) {
-        throw new Error(error.response.data.message);
-      } else if (error.response?.status === 401) {
-        this.cachedWalletId = null;
-        localStorage.removeItem("token");
-        throw new Error("Unauthorized: Please log in again.");
-      } else if (error.response?.status === 404) {
-        this.cachedWalletId = null;
-        throw new Error(
-          "Wallet not found. Please ensure you have created a wallet."
-        );
-      } else if (error.response?.status === 400) {
-        throw new Error(
-          "Invalid buy request. Please check your input parameters."
-        );
-      }
-      throw new Error(
-        "Unable to process your trade at this time. Please try again later."
-      );
-    }
-  }
-
-  public async sellCrypto(dto: BuySellCryptoDto): Promise<void> {
-    try {
-      const walletId = await this.getWalletId();
-      const currentPrice = await this.getPrice(dto.symbol);
-
-      // Ensure amount is a valid number and properly formatted
-      let numericAmount: number;
-      if (typeof dto.amount === 'string') {
-        // Remove any non-numeric characters except the first decimal point
-        const sanitizedAmount = dto.amount.replace(/[^\d.]/g, '')
-          .replace(/(\..*?)\./g, '$1'); // Keep only the first decimal point
-        numericAmount = parseFloat(sanitizedAmount);
-      } else {
-        numericAmount = dto.amount;
-      }
-
-      // Validate the parsed amount
-      if (isNaN(numericAmount) || numericAmount <= 0) {
-        throw new Error('Invalid amount: Amount must be a positive number');
-      }
-
-      // Format to a fixed number of decimal places based on the trading pair
-      const decimals = 8; // You can adjust this based on your needs
-      numericAmount = Number(numericAmount.toFixed(decimals));
-
-      // Get current holdings first
-      const holdings = await cryptoHoldingsService.getCryptoHoldings(walletId);
-      const existingHolding = holdings.find(h => h.symbol === dto.symbol);
-
-      if (!existingHolding) {
-        throw new Error(`No holdings found for ${dto.symbol}`);
-      }
-
-      // Parse existing holding amount carefully
-      const currentAmount = typeof existingHolding.amount === 'string'
-        ? parseFloat(existingHolding.amount.replace(/[^\d.]/g, '').replace(/(\..*?)\./g, '$1'))
-        : existingHolding.amount;
-
-      if (isNaN(currentAmount)) {
-        throw new Error(`Invalid holding amount for ${dto.symbol}`);
-      }
-
-      if (currentAmount < numericAmount) {
-        throw new Error(`Insufficient balance. You only have ${currentAmount.toFixed(8)} ${dto.symbol}`);
-      }
-
-      // Format the request body
-      const requestBody = {
-        userId: dto.userId,
-        walletId: walletId,
-        symbol: dto.symbol,
-        amount: numericAmount,
-        price: currentPrice
-      };
-
-      console.log('Sending sell request with body:', requestBody);
-
-      // Send the request to sell crypto
-      const response = await this.axiosInstance.post(
-        `/wallet/${walletId}/sell`,
-        requestBody
-      );
-
-      if (response.status === 200 || response.status === 201) {
-        // Update holdings
-        await cryptoHoldingsService.updateHolding({
-          walletId,
-          symbol: dto.symbol,
-          amount: numericAmount,
-          transactionType: "SELL",
-          price: currentPrice
-        });
-
-        // Invalidate the cache
-        this.cachedWalletId = null;
-      }
-
-      return response.data;
-    } catch (error: any) {
-      console.error('Sell request failed:', error);
-
-      if (error.response?.status === 401) {
-        this.cachedWalletId = null;
-        localStorage.removeItem("token");
-        throw new Error("Unauthorized: Please log in again.");
-      } else if (error.response?.status === 404) {
-        this.cachedWalletId = null;
-        throw new Error("Wallet not found. Please ensure you have created a wallet.");
-      } else if (error.response?.status === 400) {
-        throw new Error(error.response?.data?.message || "Invalid sell request. Please check your input parameters.");
-      } else if (error.response?.status === 500) {
-        throw new Error("Server error occurred. Please try again.");
-      }
-
-      throw new Error(error.message || "Unable to process your trade at this time. Please try again later.");
-    }
-  }
 
   public async getHistoricalPrices(
     symbol: string,

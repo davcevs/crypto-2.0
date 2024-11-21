@@ -135,4 +135,42 @@ export class CryptoController {
       );
     }
   }
+
+  @Get('exchangeInfo')
+  @ApiOperation({ summary: 'Get all trading pairs and their details' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of trading pairs and details',
+    schema: {
+      example: [
+        {
+          symbol: 'BTCUSDT',
+          baseAsset: 'BTC',
+          quoteAsset: 'USDT',
+          status: 'TRADING',
+          minQty: '0.0001',
+          minNotional: '10'
+        }
+      ]
+    }
+  })
+  async getExchangeInfo() {
+    try {
+      // Ensure this method is implemented in your BinanceService
+      const exchangeInfo = await this.binanceService.getExchangeInfo();
+      return exchangeInfo;
+    } catch (error) {
+      console.error('Exchange Info Fetch Error:', error);
+      throw new HttpException(
+        {
+          status: 'error',
+          message: 'Failed to fetch exchange information',
+          details: error.message
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
+
 }

@@ -28,7 +28,7 @@ const HomePage = () => {
   });
 
   return (
-    <div className="min-h-screen bg-[#181818] text-white">
+    <div className="min-h-screen bg-[#181818] text-white ">
       {/* Hero Section */}
       <section className="pt-32 pb-24 relative overflow-hidden">
         <div className="container mx-auto px-4 relative z-10">

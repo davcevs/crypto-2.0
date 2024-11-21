@@ -7,6 +7,7 @@ import {
   Binance24HrStats,
 } from './interfaces/binance.interfaces';
 import { CandlestickDto, HistoricalPriceDto, StatisticsResponseDto } from './dtos/binance.dto';
+import axios from 'axios';
 
 @Injectable()
 export class BinanceService {
@@ -149,6 +150,43 @@ export class BinanceService {
     } catch (error) {
       this.logger.error(`Error in getCandlestickData: ${error.message}`);
       throw error;
+    }
+  }
+
+  async getExchangeInfo() {
+    try {
+      const response = await axios.get('https://api.binance.com/api/v3/exchangeInfo');
+
+      const symbols = response.data.symbols
+        .filter(symbol =>
+          symbol.status === 'TRADING' &&
+          symbol.quoteAsset === 'USDT'
+        )
+        .map(symbol => ({
+          symbol: symbol.symbol,
+          baseAsset: symbol.baseAsset,
+          quoteAsset: symbol.quoteAsset,
+          status: symbol.status,
+          minQty: symbol.filters.find(f => f.filterType === 'LOT_SIZE')?.minQty || 'N/A',
+          minNotional: symbol.filters.find(f => f.filterType === 'MIN_NOTIONAL')?.minNotional || 'N/A'
+        }));
+
+      return symbols;
+    } catch (error) {
+      console.error('Detailed Binance API Error:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      });
+
+      throw new HttpException(
+        {
+          status: 'error',
+          message: 'Failed to fetch exchange information from Binance',
+          details: error.response?.data || error.message
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
     }
   }
 }

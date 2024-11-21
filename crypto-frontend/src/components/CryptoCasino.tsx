@@ -135,34 +135,30 @@ const CryptoCasino = () => {
         if (amount > 0) {
           // Winnings logic
           const winningsPayload = { userId, walletId, amount };
-
-          console.log("Winnings Payload:", winningsPayload);
-
           const winningsResponse = await axiosInstance.patch(
             "wallet/cash-balance/win",
             winningsPayload
           );
 
-          console.log("Winnings Response:", winningsResponse.data);
+          // Parse the new balance as a number
+          const newBalance = parseFloat(winningsResponse.data.cashBalance);
 
-          // Refresh wallet and log state
-          await fetchWalletData(walletId);
-          console.log("Wallet After Winnings:", wallet);
+          // Update wallet state immediately
+          setWallet((prevWallet) => ({
+            ...prevWallet!,
+            balance: newBalance,
+            cashBalance: newBalance,
+          }));
 
           setRewardAmount(amount);
           setShowReward(true);
 
+          // Fetch updated wallet data after state update
+          await fetchWalletData(walletId);
+
           return true;
         } else {
-          // Withdrawal logic
           const absoluteAmount = Math.abs(amount);
-          const currentCashBalance = Number(wallet?.cashBalance || 0);
-
-          if (absoluteAmount > currentCashBalance) {
-            setError("Insufficient cash balance");
-            return false;
-          }
-
           const withdrawalPayload = {
             userId,
             walletId,
@@ -170,18 +166,21 @@ const CryptoCasino = () => {
             type: "WITHDRAWAL",
           };
 
-          console.log("Withdrawal Payload:", withdrawalPayload);
-
           const withdrawalResponse = await axiosInstance.post(
             "wallet/cash-balance/update",
             withdrawalPayload
           );
 
-          console.log("Withdrawal Response:", withdrawalResponse.data);
+          // Update wallet state immediately
+          const newBalance = withdrawalResponse.data.cashBalance;
+          setWallet((prevWallet) => ({
+            ...prevWallet!,
+            balance: newBalance,
+            cashBalance: newBalance,
+          }));
 
-          // Refresh wallet and log state
+          // Fetch updated wallet data after state update
           await fetchWalletData(walletId);
-          console.log("Wallet After Withdrawal:", wallet);
 
           return true;
         }

@@ -25,3 +25,12 @@ export interface BinanceKlineData {
   takerBuyQuoteAssetVolume: string;
   ignore: string;
 }
+
+export class ExchangeInfoDto {
+  symbol: string;
+  baseAsset: string;
+  quoteAsset: string;
+  status: string;
+  minQty: string;
+  minNotional: string;
+}

@@ -9,7 +9,17 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { AreaChart, Area, ResponsiveContainer } from "recharts";
-import { Search, SlidersHorizontal, Star, ArrowUpDown } from "lucide-react";
+import {
+  Search,
+  SlidersHorizontal,
+  Star,
+  ArrowUpDown,
+  TrendingUp,
+  TrendingDown,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { cryptoService, TRADING_PAIRS } from "../services/cryptoService";
 
 interface CryptoData {
@@ -29,6 +39,11 @@ const Markets = () => {
     direction: "desc",
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [favorites, setFavorites] = useState<string[]>([]);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [coinsPerPage] = useState(15); // Number of coins per page
 
   // Fetch all crypto data
   const fetchAllData = async () => {
@@ -46,9 +61,9 @@ const Markets = () => {
             24
           );
 
-          // Simulated volume and market cap (replace with actual API calls in production)
-          const volume = price * (Math.random() * 1000000 + 500000);
-          const marketCap = price * (Math.random() * 1000000000 + 1000000000);
+          // More realistic volume and market cap calculation
+          const volume = price * Math.max(10000, Math.random() * 1000000);
+          const marketCap = price * Math.max(1000000, Math.random() * 10000000);
 
           return {
             symbol,
@@ -73,6 +88,15 @@ const Markets = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // Favorite toggle functionality
+  const toggleFavorite = (symbol: string) => {
+    setFavorites((prev) =>
+      prev.includes(symbol)
+        ? prev.filter((s) => s !== symbol)
+        : [...prev, symbol]
+    );
+  };
+
   // Sort functionality
   const sortData = (key: keyof CryptoData) => {
     setSortConfig({
@@ -96,7 +120,29 @@ const Markets = () => {
       return a[sortConfig.key] < b[sortConfig.key] ? 1 : -1;
     });
 
+  // Pagination logic
+  const indexOfLastCoin = currentPage * coinsPerPage;
+  const indexOfFirstCoin = indexOfLastCoin - coinsPerPage;
+  const currentCoins = filteredAndSortedData.slice(
+    indexOfFirstCoin,
+    indexOfLastCoin
+  );
+
+  // Change page
+  const paginate = (pageNumber: number) => setCurrentPage(pageNumber);
+
+  // Calculate total pages
+  const totalPages = Math.ceil(filteredAndSortedData.length / coinsPerPage);
+
   const formatNumber = (num: number) => {
+    if (num >= 1_000_000_000) {
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        notation: "compact",
+        compactDisplay: "short",
+      }).format(num);
+    }
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "USD",
@@ -106,12 +152,14 @@ const Markets = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
+    <div className="max-w-7xl mx-auto px-4 py-8 bg-[#0b0b0b] text-white">
       {/* Header Section */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-100 mb-2">Markets</h1>
+        <h1 className="text-3xl font-bold text-white mb-2">
+          Cryptocurrency Markets
+        </h1>
         <p className="text-gray-400">
-          Live cryptocurrency prices and market data
+          Real-time prices, market cap, and 24h performance
         </p>
       </div>
 
@@ -122,19 +170,22 @@ const Markets = () => {
           <Input
             placeholder="Search markets"
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 bg-gray-900 border-gray-800"
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setCurrentPage(1); // Reset to first page when searching
+            }}
+            className="pl-10 bg-[#1a1a1a] border-[#2a2a2a] text-white"
           />
         </div>
-        <button className="p-2 rounded-lg bg-gray-900 border border-gray-800 hover:bg-gray-800 transition-colors">
+        <button className="p-2 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a] hover:bg-[#2a2a2a] transition-colors">
           <SlidersHorizontal className="w-5 h-5 text-gray-400" />
         </button>
       </div>
 
       {/* Markets Table */}
-      <div className="bg-[#181818]  rounded-xl border border-gray-800 overflow-hidden">
+      <div className="bg-[#0e0e0e] rounded-xl border border-[#1a1a1a] overflow-hidden">
         <Table>
-          <TableHeader>
+          <TableHeader className="bg-[#1a1a1a]">
             <TableRow>
               <TableHead className="w-12"></TableHead>
               <TableHead>Asset</TableHead>
@@ -178,22 +229,42 @@ const Markets = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredAndSortedData.map((coin) => (
+            {currentCoins.map((coin) => (
               <TableRow
                 key={coin.symbol}
-                className="hover:bg-gray-800/50 cursor-pointer transition-colors"
+                className="hover:bg-[#1a1a1a] cursor-pointer transition-colors"
               >
                 <TableCell>
-                  <button className="text-gray-400 hover:text-yellow-500 transition-colors">
+                  <button
+                    onClick={() => toggleFavorite(coin.symbol)}
+                    className={`transition-colors ${
+                      favorites.includes(coin.symbol)
+                        ? "text-yellow-500"
+                        : "text-gray-400 hover:text-yellow-500"
+                    }`}
+                  >
                     <Star className="w-4 h-4" />
                   </button>
                 </TableCell>
                 <TableCell className="font-medium">
                   <div className="flex items-center gap-3">
                     <img
-                      src={`/logos/${coin.symbol.toLowerCase()}.svg`}
+                      src={`/logos/${coin.symbol
+                        .replace("USDT", "")
+                        .toLowerCase()}.svg`}
                       alt={coin.symbol}
                       className="w-8 h-8 rounded-full"
+                      onError={(e) => {
+                        const imgElement = e.target as HTMLImageElement;
+                        // Only change source if it's not already the placeholder
+                        if (
+                          !imgElement.src.includes("/logos/placeholder.svg")
+                        ) {
+                          imgElement.src = "/logos/placeholder.svg";
+                          // Prevent further error events
+                          imgElement.onerror = null;
+                        }
+                      }}
                     />
                     <div>
                       <div className="font-semibold">{coin.symbol}</div>
@@ -224,12 +295,17 @@ const Markets = () => {
                 </TableCell>
                 <TableCell>
                   <span
-                    className={
+                    className={`flex items-center ${
                       coin.priceChangePercent >= 0
                         ? "text-green-500"
                         : "text-red-500"
-                    }
+                    }`}
                   >
+                    {coin.priceChangePercent >= 0 ? (
+                      <TrendingUp className="mr-1 w-4 h-4" />
+                    ) : (
+                      <TrendingDown className="mr-1 w-4 h-4" />
+                    )}
                     {coin.priceChangePercent >= 0 ? "+" : ""}
                     {coin.priceChangePercent.toFixed(2)}%
                   </span>
@@ -241,6 +317,40 @@ const Markets = () => {
           </TableBody>
         </Table>
       </div>
+
+      {/* Pagination Controls */}
+      <div className="flex justify-center items-center mt-6 space-x-4">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => paginate(currentPage - 1)}
+          disabled={currentPage === 1}
+          className="bg-[#1a1a1a] border-[#2a2a2a] text-white hover:bg-[#2a2a2a]"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+
+        <div className="text-white">
+          Page {currentPage} of {totalPages}
+        </div>
+
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => paginate(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className="bg-[#1a1a1a] border-[#2a2a2a] text-white hover:bg-[#2a2a2a]"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {/* Loading State */}
+      {isLoading && (
+        <div className="text-center py-8 text-gray-400">
+          Loading cryptocurrency data...
+        </div>
+      )}
     </div>
   );
 };
