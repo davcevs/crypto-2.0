@@ -20,7 +20,7 @@ export interface TransactionStats {
 
 export interface CreateTransactionDto {
   walletId: string;
-  type: 'BUY' | 'SELL' | 'TRANSFER';
+  type: 'BUY' | 'SELL' | 'TRANSFER' | 'WIN' | 'LOSS';
   symbol: string;
   amount: number;
   price: number;

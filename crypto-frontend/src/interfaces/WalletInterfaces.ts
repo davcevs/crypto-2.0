@@ -23,6 +23,8 @@ export interface TradePayload {
   walletId: string;
   symbol: string;
   amount: number;
+  type: 'BUY' | 'SELL';
+  price: number;
 }
 
 export interface WalletData {
@@ -42,6 +44,15 @@ export interface WalletData {
     price: number;
     timestamp: string;
   }[];
+}
+
+export interface TradePayload {
+  userId: string;
+  walletId: string;
+  symbol: string;
+  amount: number;
+  type: 'BUY' | 'SELL';
+  price: number;
 }
 
 export interface WalletStats {

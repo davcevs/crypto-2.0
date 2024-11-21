@@ -1,124 +1,22 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { UserCircle2, History, Wallet } from "lucide-react";
-import GameCard from "./GameCard";
-import SlotMachine from "./SlotMachine";
-import Roulette from "./Roulette";
-import Blackjack from "./Blackjack";
+import { Wallet } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+
 import axiosInstance from "../common/axios-instance";
+import { games } from "./Games";
+import GameCard from "../components/GameCard";
+import WalletPanel from "./CasinoWalletPanel";
+
 import {
   WalletData,
   WalletStats,
-  CryptoHolding,
   ApiError,
-  CryptoHoldingsResponse,
-} from "@/interfaces/WalletInterfaces";
-import { User } from "@/interfaces/UserInterface";
+  TradePayload,
+} from "../interfaces/WalletInterfaces";
+import { User } from "../interfaces/UserInterface";
 
-interface WalletPanelProps {
-  wallet: WalletData;
-  stats: WalletStats;
-  onClose: () => void;
-  cryptoBalances: CryptoHolding[];
-}
-
-// Define the available games
-const games = [
-  {
-    title: "Slots of Fortune",
-    imageSrc: "../src/assets/1.png.webp",
-    category: "Slots",
-    bgColor: "bg-gradient-to-br from-yellow-400 to-red-500",
-    component: SlotMachine,
-  },
-  {
-    title: "Roulette Royale",
-    imageSrc: "/api/placeholder/400/320",
-    category: "Table Games",
-    bgColor: "bg-gradient-to-br from-green-600 to-blue-600",
-    component: Roulette,
-  },
-  {
-    title: "Blackjack Pro",
-    imageSrc: "/api/placeholder/400/320",
-    category: "Card Games",
-    bgColor: "bg-gradient-to-br from-purple-600 to-pink-600",
-    component: Blackjack,
-  },
-];
-
-const WalletPanel: React.FC<WalletPanelProps> = ({
-  wallet,
-  stats,
-  onClose,
-  cryptoBalances,
-}) => {
-  return (
-    <motion.div
-      initial={{ x: "100%" }}
-      animate={{ x: 0 }}
-      exit={{ x: "100%" }}
-      className="fixed right-0 top-0 h-full w-80 bg-gray-900 p-6 shadow-2xl overflow-y-auto"
-    >
-      <button
-        onClick={onClose}
-        className="absolute top-4 right-4 text-gray-400 hover:text-white"
-      >
-        ×
-      </button>
-
-      <div className="space-y-6">
-        <div className="bg-gray-800 rounded-lg p-4">
-          <h3 className="text-xl font-bold text-white mb-2">Wallet Balance</h3>
-          <p className="text-2xl text-green-400">${wallet.cashBalance}</p>
-        </div>
-
-        <div className="bg-gray-800 rounded-lg p-4">
-          <h3 className="text-xl font-bold text-white mb-2">Crypto Holdings</h3>
-          <div className="space-y-2">
-            {cryptoBalances.map((holding) => (
-              <div
-                key={holding.symbol}
-                className="flex justify-between items-center"
-              >
-                <span className="text-gray-400">{holding.symbol}</span>
-                <div className="text-right">
-                  <div className="text-white">{holding.amount}</div>
-                  <div className="text-sm text-gray-400">
-                    ${(holding.amount * holding.price).toFixed(2)}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="bg-gray-800 rounded-lg p-4">
-          <h3 className="text-xl font-bold text-white mb-2">Statistics</h3>
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <span className="text-gray-400">Total Value:</span>
-              <span className="text-white">${stats.totalValue}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-400">Daily Change:</span>
-              <span
-                className={
-                  stats.dailyChange >= 0 ? "text-green-400" : "text-red-400"
-                }
-              >
-                ${stats.dailyChange} ({stats.dailyChangePercentage}%)
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </motion.div>
-  );
-};
-
-const CryptoCasino: React.FC = () => {
+const CryptoCasino = () => {
   const [selectedGame, setSelectedGame] = useState<(typeof games)[0] | null>(
     null
   );
@@ -128,11 +26,24 @@ const CryptoCasino: React.FC = () => {
   const [showReward, setShowReward] = useState(false);
   const [rewardAmount, setRewardAmount] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [cryptoBalances, setCryptoBalances] = useState<CryptoHolding[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
+  const [walletId, setWalletId] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  const fetchUserData = useCallback(async (): Promise<string | null> => {
+  // Fetch current crypto price
+  const fetchCryptoPrice = async (symbol: string): Promise<number> => {
+    try {
+      const response = await axiosInstance.get<{ price: number }>(
+        `/crypto/price/${symbol}`
+      );
+      return response.data.price || 0;
+    } catch (error) {
+      console.error(`Failed to fetch price for ${symbol}:`, error);
+      return 0;
+    }
+  };
+
+  const fetchUserData = useCallback(async (): Promise<User | null> => {
     try {
       const urlParams = new URLSearchParams(window.location.search);
       const userIdFromUrl = urlParams.get("userId");
@@ -150,7 +61,8 @@ const CryptoCasino: React.FC = () => {
       }
 
       setUserId(response.data.id);
-      return response.data.id;
+      setWalletId(response.data.walletId);
+      return response.data;
     } catch (err) {
       const apiError = err as ApiError;
       setError(apiError.response?.message || "An error occurred");
@@ -160,103 +72,77 @@ const CryptoCasino: React.FC = () => {
     }
   }, [navigate]);
 
-  const fetchCryptoPrice = async (symbol: string): Promise<number> => {
-    try {
-      const response = await axiosInstance.get<{ price: number }>(
-        `/crypto/price/${symbol}`
-      );
-      return response.data.price;
-    } catch (error) {
-      console.error(`Failed to fetch price for ${symbol}:`, error);
-      return 0;
-    }
-  };
-
+  // Fetch wallet data with more comprehensive details
   const fetchWalletData = useCallback(async (walletId: string) => {
     try {
-      // Get wallet details using wallet ID
-      const walletResponse = await axiosInstance.get<{ walletId: string }>(
-        `/wallet/user/${walletId}`
+      const [walletResponse, statsResponse] = await Promise.all([
+        axiosInstance.get<WalletData>(`/wallet/${walletId}`),
+        axiosInstance.get<WalletStats>(`/wallet/${walletId}/stats`),
+      ]);
+
+      // Safely process wallet holdings
+      const safeHoldings = (walletResponse.data.holdings || []).map(
+        (holding) => ({
+          ...holding,
+          currentPrice: 1, // Default price
+          amount: holding.amount || 0,
+        })
       );
-      const wallet = walletResponse.data;
 
-      // Get wallet details
-      const [detailsResponse, statsResponse, holdingsResponse] =
-        await Promise.all([
-          axiosInstance.get<WalletData>(`/wallet/${wallet.walletId}`),
-          axiosInstance.get<WalletStats>(`/wallet/${wallet.walletId}/stats`),
-          axiosInstance.get<CryptoHoldingsResponse>(
-            `/crypto-holdings/${wallet.walletId}/holdings`
-          ),
-        ]);
-
-      setWallet(detailsResponse.data);
-      setWalletStats(statsResponse.data);
-
-      // Update crypto balances with current prices
-      const balancesWithPrices = await Promise.all(
-        holdingsResponse.data.holdings.map(async (holding) => {
+      const updatedHoldings = await Promise.all(
+        safeHoldings.map(async (holding) => {
           const symbol = holding.symbol.endsWith("USDT")
             ? holding.symbol
             : `${holding.symbol}USDT`;
 
-          const price = await fetchCryptoPrice(symbol);
+          const currentPrice = await fetchCryptoPrice(symbol);
           return {
             ...holding,
-            currentPrice: price,
-            totalValue: holding.amount * price,
+            currentPrice: currentPrice || 1,
           };
         })
       );
 
-      setCryptoBalances(balancesWithPrices);
+      const updatedWallet = {
+        ...walletResponse.data,
+        balance: walletResponse.data.balance || 0,
+        holdings: updatedHoldings,
+      };
+
+      setWallet(updatedWallet);
+      setWalletStats(statsResponse.data);
       setError(null);
     } catch (err) {
       const apiError = err as ApiError;
-      setError(apiError.response?.message || "An error occurred");
-      console.error("Error fetching wallet data:", err);
+      setError(apiError.response?.message || "Error fetching wallet");
+      console.error("Wallet fetch error:", err);
     }
   }, []);
 
-  useEffect(() => {
-    const initializeData = async () => {
-      const uid = await fetchUserData();
-      if (uid) {
-        await fetchWalletData(uid);
-      }
-    };
-
-    initializeData();
-
-    // Set up periodic price updates
-    const priceUpdateInterval = setInterval(async () => {
-      if (cryptoBalances.length > 0) {
-        const updatedBalances = await Promise.all(
-          cryptoBalances.map(async (balance) => {
-            const symbol = balance.symbol.endsWith("USDT")
-              ? balance.symbol
-              : `${balance.symbol}USDT`;
-            const price = await fetchCryptoPrice(symbol);
-            return {
-              ...balance,
-              currentPrice: price,
-              totalValue: balance.amount * price,
-            };
-          })
-        );
-        setCryptoBalances(updatedBalances);
-      }
-    }, 30000);
-
-    return () => {
-      clearInterval(priceUpdateInterval);
-    };
-  }, [fetchUserData, fetchWalletData]);
-
+  // Update balance after game
   const updateBalance = async (amount: number) => {
     try {
-      if (userId) {
-        await fetchWalletData(userId);
+      if (userId && walletId) {
+        // Fetch current price for USDT
+        const usdtPrice = await fetchCryptoPrice("USDT");
+
+        const payload: TradePayload = {
+          userId,
+          walletId,
+          symbol: "USDT",
+          amount: Math.abs(amount),
+          type: amount > 0 ? "BUY" : "SELL", // Determine transaction type
+          price: usdtPrice || 1, // Use fetched price or default to 1
+        };
+
+        console.log("Transaction Payload:", payload);
+
+        const response = await axiosInstance.post("/transactions", payload);
+        console.log("Transaction Response:", response.data);
+
+        // Immediately refresh wallet after transaction
+        await fetchWalletData(walletId);
+
         if (amount > 0) {
           setRewardAmount(amount);
           setShowReward(true);
@@ -264,30 +150,53 @@ const CryptoCasino: React.FC = () => {
       }
     } catch (err) {
       const apiError = err as ApiError;
-      setError(apiError.response?.message || "An error occurred");
+      console.error("Transaction Error:", apiError.response?.data);
+      setError(apiError.response?.data?.message || "Transaction failed");
     }
   };
 
+  useEffect(() => {
+    const initializeData = async () => {
+      const user = await fetchUserData();
+      if (user?.walletId) {
+        await fetchWalletData(user.walletId);
+      }
+    };
+
+    initializeData();
+
+    const walletUpdateInterval = setInterval(async () => {
+      if (walletId) {
+        await fetchWalletData(walletId);
+      }
+    }, 30000);
+
+    return () => {
+      clearInterval(walletUpdateInterval);
+    };
+  }, [fetchUserData, fetchWalletData, walletId]);
+
+  // Calculate total balance including crypto
+  const getTotalBalance = () => {
+    if (!wallet) return "0.00";
+
+    // Safely calculate crypto value with error handling
+    const cryptoValue = (wallet.holdings || []).reduce((total, holding) => {
+      const value = Number(holding.amount) * Number(holding.currentPrice || 0);
+      return isNaN(value) ? total : total + value;
+    }, 0);
+
+    const baseBalance = Number(wallet.cashBalance || 0);
+    return (baseBalance + cryptoValue).toFixed(2);
+  };
+
+  // Reward popup timer
   useEffect(() => {
     if (showReward) {
       const timer = setTimeout(() => setShowReward(false), 3000);
       return () => clearTimeout(timer);
     }
   }, [showReward]);
-
-  const getTotalBalance = () => {
-    if (!wallet || !cryptoBalances.length) {
-      return Number(wallet?.cashBalance || 0).toFixed(2);
-    }
-
-    const cryptoValue = cryptoBalances.reduce(
-      (total, holding) =>
-        total + Number(holding.amount) * Number(holding.price),
-      0
-    );
-
-    return (Number(wallet.cashBalance) + cryptoValue).toFixed(2);
-  };
 
   return (
     <div className="flex overflow-hidden bg-gradient-to-br from-gray-900 via-purple-900 to-black min-h-screen">
@@ -356,8 +265,9 @@ const CryptoCasino: React.FC = () => {
             {React.createElement(selectedGame.component, {
               updateBalance,
               balance: getTotalBalance(),
-              cryptoBalances,
+              cryptoBalances: wallet?.holdings || [],
               userId,
+              walletId,
             })}
           </motion.div>
         ) : (
@@ -377,7 +287,6 @@ const CryptoCasino: React.FC = () => {
             <WalletPanel
               wallet={wallet}
               stats={walletStats}
-              cryptoBalances={cryptoBalances}
               onClose={() => setShowWallet(false)}
             />
           )}

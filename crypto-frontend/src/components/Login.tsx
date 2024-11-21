@@ -11,7 +11,7 @@ const Login = () => {
   useEffect(() => {
     const user = getCurrentUser();
     if (user) {
-      navigate("/markets");
+      navigate("/");
     }
   }, [navigate]);
 
