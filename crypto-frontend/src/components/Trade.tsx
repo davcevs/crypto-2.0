@@ -5,6 +5,7 @@ import {
   Loader2,
   CreditCard,
   RefreshCw,
+  ChevronDown,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -15,10 +16,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import axiosInstance from "@/common/axios-instance";
 import { useWallet } from "../hooks/useWallet";
 import { useTrade } from "../hooks/useTrade";
 import { TradeForm } from "../components/TradeForm";
+import { CandlestickChart } from "../components/CandlestickChart";
 import { User } from "./../interfaces/UserInterface";
 
 interface CryptoTradingProps {
@@ -29,6 +32,8 @@ const Trade: React.FC<CryptoTradingProps> = ({ onTradeComplete }) => {
   const [user, setUser] = useState<User | null>(null);
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [selectedSymbol, setSelectedSymbol] = useState("BTC");
+  const [selectedInterval, setSelectedInterval] = useState("1m");
 
   const {
     wallet,
@@ -79,132 +84,169 @@ const Trade: React.FC<CryptoTradingProps> = ({ onTradeComplete }) => {
     }
   };
 
-  const handleTrade = async (
-    tradeType: "buy" | "sell",
-    symbol: string,
-    amount: string
-  ) => {
-    const success = await executeTrade(tradeType, symbol, amount);
-    if (success) {
-      setCurrentPrice(null);
-    }
-  };
-
   const handleSymbolChange = (symbol: string) => {
+    setSelectedSymbol(symbol);
     fetchCurrentPrice(symbol);
   };
 
-  // Safe balance extraction
   const cashBalance = wallet?.balance ?? wallet?.cashBalance ?? 0;
+  const error = walletError || tradeError;
 
   if (isFetchingWallet) {
     return (
-      <Card className="w-full bg-gradient-to-br from-white to-gray-100 dark:from-gray-900 dark:to-gray-800 shadow-xl">
-        <CardContent className="p-6">
-          <div className="flex items-center justify-center space-x-2 text-primary">
-            <Loader2 className="w-6 h-6 animate-spin" />
-            <span>Loading wallet data...</span>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const error = walletError || tradeError;
-
-  if (!wallet) {
-    return (
-      <Card className="w-full bg-gradient-to-br from-white to-gray-100 dark:from-gray-900 dark:to-gray-800 shadow-xl">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-primary">
-            <TrendingUp className="w-5 h-5" />
-            Crypto Trading
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {error && (
-            <Alert variant="destructive" className="mb-4">
-              <AlertTriangle className="w-4 h-4" />
-              <AlertDescription>
-                {error}
-                {(error === "Session expired. Please log in again." ||
-                  error === "User not authenticated") && (
-                  <Button
-                    variant="outline"
-                    className="mt-2 w-full"
-                    onClick={() => {
-                      localStorage.clear();
-                      window.location.href = "/login";
-                    }}
-                  >
-                    Go to Login
-                  </Button>
-                )}
-              </AlertDescription>
-            </Alert>
-          )}
-        </CardContent>
-      </Card>
+      <div className="flex items-center justify-center h-screen bg-[#161A1E]">
+        <Loader2 className="w-6 h-6 animate-spin text-yellow-500" />
+      </div>
     );
   }
 
   return (
-    <Card className="w-full bg-gradient-to-br from-white to-gray-100 dark:from-gray-900 dark:to-gray-800 shadow-xl">
-      <CardHeader className="border-b border-gray-200 dark:border-gray-700">
-        <CardTitle className="flex items-center justify-between text-primary">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="w-5 h-5" />
-            Crypto Trading
-          </div>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleRefreshWallet}
-                  disabled={isRefreshing}
-                >
-                  {isRefreshing ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="w-4 h-4" />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Refresh Wallet</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {error && (
-          <Alert variant="destructive" className="mb-4">
-            <AlertTriangle className="w-4 h-4" />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
+    <div className="min-h-screen bg-[#161A1E] text-white p-4">
+      {error && (
+        <Alert
+          variant="destructive"
+          className="mb-4 bg-red-900/20 border-red-600"
+        >
+          <AlertTriangle className="w-4 h-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
-        <div className="bg-secondary/50 rounded-lg p-4 flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <CreditCard className="w-5 h-5 text-primary" />
-            <span className="text-sm font-medium">Available Balance:</span>
+      <div className="grid grid-cols-12 gap-4">
+        {/* Left Sidebar - Market List */}
+        <div className="col-span-2 bg-[#1E2329] rounded-lg">
+          <div className="p-4 border-b border-gray-800">
+            <input
+              type="text"
+              placeholder="Search"
+              className="w-full bg-[#2B3139] text-sm rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-yellow-500"
+            />
           </div>
-          <span className="text-lg font-bold text-primary">
-            ${Number(cashBalance).toFixed(2)}
-          </span>
+
+          <div className="flex border-b border-gray-800">
+            <button className="flex-1 py-2 text-sm text-yellow-500 border-b-2 border-yellow-500">
+              USDT
+            </button>
+            <button className="flex-1 py-2 text-sm text-gray-400 hover:text-white">
+              BUSD
+            </button>
+          </div>
+
+          <div className="overflow-y-auto h-[calc(100vh-240px)]">
+            {["BTC", "ETH", "BNB", "SOL"].map((symbol) => (
+              <div
+                key={symbol}
+                onClick={() => handleSymbolChange(symbol)}
+                className={`p-4 cursor-pointer hover:bg-[#2B3139] ${
+                  selectedSymbol === symbol ? "bg-[#2B3139]" : ""
+                }`}
+              >
+                <div className="flex justify-between">
+                  <span className="font-medium">{symbol}/USDT</span>
+                  <span className="text-green-500">
+                    $
+                    {symbol === selectedSymbol && currentPrice
+                      ? currentPrice.toFixed(2)
+                      : "0.00"}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
-        <TradeForm
-          onSubmit={handleTrade}
-          loading={loading}
-          currentPrice={currentPrice}
-          onSymbolChange={handleSymbolChange}
-        />
-      </CardContent>
-    </Card>
+        {/* Center - Chart */}
+        <div className="col-span-7 bg-[#1E2329] rounded-lg">
+          <div className="p-4 border-b border-gray-800">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl font-bold">
+                    {selectedSymbol}/USDT
+                  </span>
+                  <ChevronDown className="w-4 h-4 text-gray-400" />
+                </div>
+                <span className="text-2xl font-bold text-green-500">
+                  ${currentPrice?.toFixed(2) ?? "Loading..."}
+                </span>
+              </div>
+
+              <Tabs defaultValue={selectedInterval} className="w-fit">
+                <TabsList className="bg-[#2B3139]">
+                  {["1m", "5m", "15m", "1h", "4h", "1d"].map((interval) => (
+                    <TabsTrigger
+                      key={interval}
+                      value={interval}
+                      onClick={() => setSelectedInterval(interval)}
+                      className={`${
+                        selectedInterval === interval
+                          ? "bg-yellow-500 text-black"
+                          : "text-gray-400"
+                      }`}
+                    >
+                      {interval}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
+            </div>
+          </div>
+
+          <div className="h-[600px]">
+            <CandlestickChart
+              symbol={selectedSymbol}
+              interval={selectedInterval}
+            />
+          </div>
+        </div>
+
+        {/* Right Sidebar - Trading Form */}
+        <div className="col-span-3 bg-[#1E2329] rounded-lg">
+          <div className="p-4 border-b border-gray-800">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CreditCard className="w-5 h-5 text-yellow-500" />
+                <span>Balance</span>
+              </div>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={handleRefreshWallet}
+                      disabled={isRefreshing}
+                      className="hover:bg-[#2B3139]"
+                    >
+                      {isRefreshing ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Refresh Balance</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <div className="text-2xl font-bold text-yellow-500 mt-2">
+              ${Number(wallet?.balance ?? wallet?.cashBalance ?? 0).toFixed(2)}
+            </div>
+          </div>
+
+          <div className="p-4">
+            <TradeForm
+              onSubmit={executeTrade}
+              loading={loading}
+              currentPrice={currentPrice}
+              onSymbolChange={handleSymbolChange}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 

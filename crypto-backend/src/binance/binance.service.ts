@@ -6,7 +6,7 @@ import {
   BinanceTickerPrice,
   Binance24HrStats,
 } from './interfaces/binance.interfaces';
-import { HistoricalPriceDto, StatisticsResponseDto } from './dtos/binance.dto';
+import { CandlestickDto, HistoricalPriceDto, StatisticsResponseDto } from './dtos/binance.dto';
 
 @Injectable()
 export class BinanceService {
@@ -16,7 +16,7 @@ export class BinanceService {
   constructor(
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
-  ) {}
+  ) { }
 
   async getPrice(symbol: string): Promise<number> {
     try {
@@ -105,6 +105,49 @@ export class BinanceService {
       }));
     } catch (error) {
       this.logger.error(`Error in getHistoricalPrices: ${error.message}`);
+      throw error;
+    }
+  }
+
+  async getCandlestickData(
+    symbol: string,
+    interval = '1m',
+    limit = 500,
+  ): Promise<CandlestickDto[]> {
+    try {
+      const response = await firstValueFrom(
+        this.httpService
+          .get<any[]>(`${this.apiUrl}/klines`, {
+            params: { symbol, interval, limit },
+          })
+          .pipe(
+            catchError((error) => {
+              this.logger.error(
+                `Failed to fetch candlestick data for ${symbol}: ${error.message}`,
+              );
+              throw new HttpException(
+                `Unable to fetch candlestick data for ${symbol}`,
+                HttpStatus.BAD_REQUEST,
+              );
+            }),
+          ),
+      );
+
+      return response.data.map((kline) => ({
+        openTime: kline[0],
+        open: parseFloat(kline[1]),
+        high: parseFloat(kline[2]),
+        low: parseFloat(kline[3]),
+        close: parseFloat(kline[4]),
+        volume: parseFloat(kline[5]),
+        closeTime: kline[6],
+        quoteVolume: parseFloat(kline[7]),
+        trades: kline[8],
+        takerBuyBaseVolume: parseFloat(kline[9]),
+        takerBuyQuoteVolume: parseFloat(kline[10]),
+      }));
+    } catch (error) {
+      this.logger.error(`Error in getCandlestickData: ${error.message}`);
       throw error;
     }
   }

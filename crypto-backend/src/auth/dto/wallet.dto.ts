@@ -71,3 +71,21 @@ export class UpdateCashBalanceDto {
   @IsNotEmpty()
   type: CashBalanceTransactionType;
 }
+
+export class AddWinningsDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  userId: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  walletId: string;
+
+  @ApiProperty()
+  @IsNumber()
+  @IsPositive()
+  @IsNotEmpty()
+  amount: number;
+}

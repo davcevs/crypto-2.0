@@ -132,48 +132,59 @@ const CryptoCasino = () => {
   const updateBalance = async (amount: number) => {
     try {
       if (userId && walletId) {
-        // Determine transaction type based on amount
-        const transactionType = amount > 0 ? "DEPOSIT" : "WITHDRAWAL";
+        if (amount > 0) {
+          // Winnings logic
+          const winningsPayload = { userId, walletId, amount };
 
-        // Ensure absolute value for amount
-        const absoluteAmount = Math.abs(amount);
+          console.log("Winnings Payload:", winningsPayload);
 
-        // Check if there's enough cash balance for withdrawals
-        if (transactionType === "WITHDRAWAL") {
+          const winningsResponse = await axiosInstance.patch(
+            "wallet/cash-balance/win",
+            winningsPayload
+          );
+
+          console.log("Winnings Response:", winningsResponse.data);
+
+          // Refresh wallet and log state
+          await fetchWalletData(walletId);
+          console.log("Wallet After Winnings:", wallet);
+
+          setRewardAmount(amount);
+          setShowReward(true);
+
+          return true;
+        } else {
+          // Withdrawal logic
+          const absoluteAmount = Math.abs(amount);
           const currentCashBalance = Number(wallet?.cashBalance || 0);
+
           if (absoluteAmount > currentCashBalance) {
             setError("Insufficient cash balance");
             return false;
           }
+
+          const withdrawalPayload = {
+            userId,
+            walletId,
+            amount: absoluteAmount,
+            type: "WITHDRAWAL",
+          };
+
+          console.log("Withdrawal Payload:", withdrawalPayload);
+
+          const withdrawalResponse = await axiosInstance.post(
+            "wallet/cash-balance/update",
+            withdrawalPayload
+          );
+
+          console.log("Withdrawal Response:", withdrawalResponse.data);
+
+          // Refresh wallet and log state
+          await fetchWalletData(walletId);
+          console.log("Wallet After Withdrawal:", wallet);
+
+          return true;
         }
-
-        // Create a payload for cash balance transaction
-        const payload = {
-          userId,
-          walletId,
-          amount: absoluteAmount,
-          type: transactionType,
-        };
-
-        console.log("Cash Balance Transaction Payload:", payload);
-
-        // Make an API call to update cash balance
-        const response = await axiosInstance.post(
-          "wallet/cash-balance/update",
-          payload
-        );
-        console.log("Cash Balance Transaction Response:", response.data);
-
-        // Immediately refresh wallet after transaction
-        await fetchWalletData(walletId);
-
-        // Handle reward display for positive amounts
-        if (amount > 0) {
-          setRewardAmount(absoluteAmount);
-          setShowReward(true);
-        }
-
-        return true;
       }
       return false;
     } catch (err) {

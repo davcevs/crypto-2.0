@@ -47,72 +47,114 @@ export const TradeForm: React.FC<TradeFormProps> = ({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="flex gap-4">
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="flex bg-[#2B3139] rounded-lg p-1">
         <Button
           type="button"
-          variant={tradeType === "buy" ? "default" : "outline"}
-          className="flex-1"
+          variant="ghost"
+          className={`flex-1 rounded-md ${
+            tradeType === "buy"
+              ? "bg-green-500 text-white hover:bg-green-600"
+              : "text-gray-400 hover:text-white hover:bg-[#363C45]"
+          }`}
           onClick={() => setTradeType("buy")}
         >
           Buy
         </Button>
         <Button
           type="button"
-          variant={tradeType === "sell" ? "default" : "outline"}
-          className="flex-1"
+          variant="ghost"
+          className={`flex-1 rounded-md ${
+            tradeType === "sell"
+              ? "bg-red-500 text-white hover:bg-red-600"
+              : "text-gray-400 hover:text-white hover:bg-[#363C45]"
+          }`}
           onClick={() => setTradeType("sell")}
         >
           Sell
         </Button>
       </div>
 
-      <Select value={symbol} onValueChange={handleSymbolChange}>
-        <SelectTrigger>
-          <SelectValue placeholder="Select Crypto" />
-        </SelectTrigger>
-        <SelectContent>
-          {supportedSymbols.map((sym) => (
-            <SelectItem key={sym} value={sym}>
-              {sym}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <div className="space-y-4">
+        <Select value={symbol} onValueChange={handleSymbolChange}>
+          <SelectTrigger className="w-full bg-[#2B3139] border-0 text-white hover:bg-[#363C45] focus:ring-1 focus:ring-yellow-500">
+            <SelectValue placeholder="Select Crypto" />
+          </SelectTrigger>
+          <SelectContent className="bg-[#2B3139] border-gray-700">
+            {supportedSymbols.map((sym) => (
+              <SelectItem
+                key={sym}
+                value={sym}
+                className="text-white hover:bg-[#363C45] focus:bg-[#363C45] focus:text-white"
+              >
+                {sym}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-      <Input
-        type="number"
-        placeholder="Amount"
-        value={amount}
-        onChange={(e) => setAmount(e.target.value)}
-        min="0"
-        step="0.00000001"
-      />
-
-      {currentPrice && (
-        <div className="flex justify-between items-center p-2 bg-secondary rounded">
-          <span>Current Price:</span>
-          <span className="font-semibold">${currentPrice.toFixed(2)}</span>
+        <div className="space-y-2">
+          <div className="flex justify-between text-sm text-gray-400">
+            <span>Amount</span>
+            <span>Available: 0.00 USDT</span>
+          </div>
+          <Input
+            type="number"
+            placeholder="Amount"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            min="0"
+            step="0.00000001"
+            className="bg-[#2B3139] border-0 text-white placeholder-gray-500 focus:ring-1 focus:ring-yellow-500"
+          />
         </div>
-      )}
 
-      <div className="flex justify-between items-center p-2 bg-secondary rounded">
-        <span>Estimated Total:</span>
-        <span className="font-semibold">
-          <DollarSign className="w-4 h-4 inline" />
-          {estimatedTotal}
-        </span>
+        <div className="space-y-3">
+          {currentPrice && (
+            <div className="flex justify-between items-center text-sm text-gray-400">
+              <span>Current Price</span>
+              <span className="text-white">${currentPrice.toFixed(2)}</span>
+            </div>
+          )}
+
+          <div className="flex justify-between items-center text-sm text-gray-400">
+            <span>Estimated Total</span>
+            <span className="text-white">
+              <DollarSign className="w-4 h-4 inline" />
+              {estimatedTotal}
+            </span>
+          </div>
+        </div>
       </div>
 
       <Button
         type="submit"
-        className="w-full"
+        className={`w-full h-12 font-bold ${
+          tradeType === "buy"
+            ? "bg-green-500 hover:bg-green-600"
+            : "bg-red-500 hover:bg-red-600"
+        }`}
         disabled={!symbol || !amount || loading || !currentPrice}
       >
         {loading
           ? "Processing..."
           : `${tradeType.toUpperCase()} ${symbol || "Crypto"}`}
       </Button>
+
+      <div className="grid grid-cols-4 gap-2 pt-4">
+        {[25, 50, 75, 100].map((percentage) => (
+          <button
+            key={percentage}
+            type="button"
+            className="p-1 text-sm bg-[#2B3139] text-gray-400 rounded hover:bg-[#363C45] hover:text-white"
+            onClick={() => {
+              // Add percentage calculation logic here if needed
+            }}
+          >
+            {percentage}%
+          </button>
+        ))}
+      </div>
     </form>
   );
 };

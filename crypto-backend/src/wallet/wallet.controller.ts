@@ -1,8 +1,8 @@
-import { Controller, Get, Post, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards, Patch } from '@nestjs/common';
 import { WalletService } from './wallet.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { BuySellCryptoDto, TransferCryptoDto, UpdateCashBalanceDto } from '../auth/dto/wallet.dto';
+import { AddWinningsDto, BuySellCryptoDto, TransferCryptoDto, UpdateCashBalanceDto } from '../auth/dto/wallet.dto';
 import { CryptoHoldingsService } from 'src/crypto-holdings/crypto-holdings.service';
 
 @ApiTags('Wallet')
@@ -116,4 +116,23 @@ export class WalletController {
       throw error;
     }
   }
+
+  @Patch('cash-balance/win')
+  @ApiOperation({ summary: 'Add winnings to cash balance' })
+  async addWinnings(
+    @Body() payload: AddWinningsDto
+  ) {
+    try {
+      return await this.walletService.addWinnings(
+        payload.userId,
+        payload.walletId,
+        payload.amount
+      );
+    } catch (error) {
+      console.error('Winnings Update Error:', error);
+      throw error;
+    }
+  }
+
+
 }

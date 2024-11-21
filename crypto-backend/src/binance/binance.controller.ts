@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { BinanceService } from './binance.service';
 import {
+  CandlestickDto,
   HistoricalPriceDto,
   PriceResponseDto,
   StatisticsResponseDto,
@@ -17,7 +18,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 @ApiTags('crypto')
 @Controller('crypto')
 export class CryptoController {
-  constructor(private readonly binanceService: BinanceService) {}
+  constructor(private readonly binanceService: BinanceService) { }
 
   @Get('price/:symbol')
   @ApiOperation({ summary: 'Get current price for a trading pair' })
@@ -95,6 +96,41 @@ export class CryptoController {
     } catch (error) {
       throw new HttpException(
         error.message || 'Failed to fetch historical prices',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Get('candlestick/:symbol')
+  @ApiOperation({ summary: 'Get candlestick data for a trading pair' })
+  @ApiParam({
+    name: 'symbol',
+    description: 'Trading pair symbol (e.g., BTCUSDT)',
+  })
+  @ApiParam({
+    name: 'interval',
+    description: 'Kline interval (1m,3m,5m,15m,30m,1h,2h,4h,6h,8h,12h,1d,3d,1w,1M)',
+    required: false,
+  })
+  @ApiParam({
+    name: 'limit',
+    description: 'Number of candles to return (default 500, max 1000)',
+    required: false,
+  })
+  async getCandlestickData(
+    @Param('symbol') symbol: string,
+    @Query('interval') interval = '1m',
+    @Query('limit') limit = 500,
+  ): Promise<CandlestickDto[]> {
+    try {
+      return await this.binanceService.getCandlestickData(
+        symbol.toUpperCase(),
+        interval,
+        limit,
+      );
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Failed to fetch candlestick data',
         error.status || HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }

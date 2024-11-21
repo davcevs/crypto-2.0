@@ -500,6 +500,37 @@ export class WalletService {
     };
   }
 
+  async addWinnings(
+    userId: string,
+    walletId: string,
+    amount: number
+  ) {
+    // Validate user and wallet
+    const wallet = await this.getWalletById(walletId);
+
+    if (!wallet) {
+      throw new NotFoundException('Wallet not found');
+    }
+
+    if (amount <= 0) {
+      throw new BadRequestException('Winning amount must be positive');
+    }
+
+    // Add the winnings to the cash balance
+    wallet.cashBalance += amount;
+
+    // Save the updated wallet
+    await this.walletRepository.save(wallet);
+
+    return {
+      success: true,
+      cashBalance: wallet.cashBalance,
+      message: 'Winnings added successfully',
+    };
+  }
+
+
+
   async getWalletStats(walletId: string): Promise<{
     totalValue: number;
     profitLoss: number;
