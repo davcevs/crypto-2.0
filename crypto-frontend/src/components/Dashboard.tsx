@@ -164,6 +164,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           historicalData={state.historicalData}
           selectedCrypto={selectedCrypto}
           wallet={state.wallet}
+          user={user}
         />
 
         <RecentTransactions transactions={state.transactions} />

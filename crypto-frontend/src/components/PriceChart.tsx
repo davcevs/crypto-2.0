@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   XAxis,
   YAxis,
@@ -12,22 +12,74 @@ import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatCurrency } from "../common/CurrencyFormatters";
 import { DashboardState, HistoricalDataPoint } from "types/dashboard.types";
+import axiosInstance from "@/common/axios-instance"; // Import axios for API calls
 
 interface PriceChartProps {
   historicalData: DashboardState["historicalData"];
   selectedCrypto: string;
   wallet?: DashboardState["wallet"];
+  user: { walletId: string }; // Add user prop to fetch wallet data
 }
 
 export const PriceChart: React.FC<PriceChartProps> = ({
   historicalData,
   selectedCrypto,
   wallet,
+  user,
 }) => {
   const [chartType, setChartType] = useState<"crypto" | "cashBalance">(
     "crypto"
   );
   const [timeFrame, setTimeFrame] = useState<"24h" | "7d" | "30d">("24h");
+  const [cashBalanceHistory, setCashBalanceHistory] = useState<
+    HistoricalDataPoint[]
+  >([]);
+
+  useEffect(() => {
+    const fetchCashBalanceHistory = async () => {
+      if (!user?.walletId) return;
+
+      try {
+        const response = await axiosInstance.get(
+          `/wallet/${user.walletId}/balance-history`
+        );
+
+        // Ensure the historical data is sorted by timestamp
+        const sortedHistory = response.data.sort(
+          (a, b) =>
+            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+        );
+
+        setCashBalanceHistory(sortedHistory);
+      } catch (error) {
+        console.error("Failed to fetch cash balance history", error);
+        // Fallback to generating mock data if API fails
+        const mockHistoricalData: HistoricalDataPoint[] = wallet?.cashBalance
+          ? [
+              {
+                timestamp: new Date(
+                  Date.now() - 24 * 60 * 60 * 1000
+                ).toISOString(),
+                price: wallet.cashBalance * 0.9,
+                volume: 0,
+              },
+              {
+                timestamp: new Date().toISOString(),
+                price: wallet.cashBalance,
+                volume: 0,
+              },
+            ]
+          : [];
+        setCashBalanceHistory(mockHistoricalData);
+      }
+    };
+
+    fetchCashBalanceHistory();
+
+    // Set up periodic refresh for cash balance history
+    const intervalId = setInterval(fetchCashBalanceHistory, 30000);
+    return () => clearInterval(intervalId);
+  }, [user?.walletId, wallet?.cashBalance]);
 
   const filterHistoricalData = (
     data: HistoricalDataPoint[],
@@ -59,8 +111,8 @@ export const PriceChart: React.FC<PriceChartProps> = ({
     isCashBalance = false,
   }: {
     symbol: string;
-    data: HistoricalDataPoint[];
     isCashBalance?: boolean;
+    data: HistoricalDataPoint[];
   }) => {
     return (
       <div className="h-64">
@@ -99,7 +151,7 @@ export const PriceChart: React.FC<PriceChartProps> = ({
             />
             <Area
               type="monotone"
-              dataKey={isCashBalance ? "balance" : "price"}
+              dataKey={isCashBalance ? "price" : "price"}
               stroke={isCashBalance ? "#10b981" : "#3b82f6"}
               fillOpacity={1}
               fill={
@@ -120,24 +172,8 @@ export const PriceChart: React.FC<PriceChartProps> = ({
     timeFrame
   );
 
-  // Mock cash balance historical data (you should replace this with actual backend data)
-  const cashBalanceHistoricalData: HistoricalDataPoint[] = wallet?.cashBalance
-    ? [
-        {
-          timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-          price: wallet.cashBalance * 0.9,
-          volume: 0,
-        },
-        {
-          timestamp: new Date().toISOString(),
-          price: wallet.cashBalance,
-          volume: 0,
-        },
-      ]
-    : [];
-
   const filteredCashBalanceData = filterHistoricalData(
-    cashBalanceHistoricalData,
+    cashBalanceHistory,
     timeFrame
   );
 
