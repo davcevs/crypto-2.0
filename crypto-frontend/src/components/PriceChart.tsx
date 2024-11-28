@@ -12,13 +12,13 @@ import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatCurrency } from "../common/CurrencyFormatters";
 import { DashboardState, HistoricalDataPoint } from "types/dashboard.types";
-import axiosInstance from "@/common/axios-instance"; // Import axios for API calls
+import axiosInstance from "@/common/axios-instance";
 
 interface PriceChartProps {
   historicalData: DashboardState["historicalData"];
   selectedCrypto: string;
   wallet?: DashboardState["wallet"];
-  user: { walletId: string }; // Add user prop to fetch wallet data
+  user: { walletId: string };
 }
 
 export const PriceChart: React.FC<PriceChartProps> = ({
