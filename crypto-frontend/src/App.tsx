@@ -199,6 +199,7 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            <Route path="/learn" element={<Learn />} />
             <Route
               path="/create-nft"
               element={
